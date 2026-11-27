@@ -1,58 +1,53 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import {
-  BOX_PAD,
-  DOT_GRAB,
-  DRAG_THRESHOLD,
-  FONT_FAMILY,
-  FONT_SIZE,
-  TEXT_PAD,
-  axisEnd,
-  boxFontSize,
-  boxTouches,
-  distToDot,
-  elBox,
-  hitTest,
-  itemTextOf,
-  measureText,
-  nearestDot,
-  textCells,
-  translate,
-} from '../geometry'
-import { strokePaths } from '../ink'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { BOX_LINE_GAP, BOX_PAD, DOT_GRAB, boxLineYs, boxLines, DRAG_THRESHOLD, FONT_SIZE, TEXT_PAD, axisEnd, boxFontSize, boxTouches, distToDot, elBox, hitTest, fontSizeOf, textWidth, textAnchor, textMidY, textInk, nearestDot, textCells } from '../geometry'
+import { fontOf } from '../fonts'
+import { placeSelection } from '../move'
 import { uid, useStore } from '../store'
-import type { BulletEl, BulletState, El, LineEl, Page, PenType, Pt } from '../types'
+import type { El, MarkEl, Page, Pt } from '../types'
+import { BOX_CURSOR, CURSORS, ERASER_CURSOR, highlighterCursor } from './page/cursors'
+import { addPaintCells, cellOf, useLinger, vPlace } from './page/helpers'
+import { BoxText, BulletGlyph, IconGlyph, InkLine, LivePreview, MarkGlyph, boldCss, boldProps } from './page/glyphs'
+import { GuideMarks, MarqueeRect } from './page/overlays'
+import { SymbolPopup } from './page/SymbolPopup'
+import { SelectionBar } from './page/SelectionBar'
+import { IconPicker } from './page/IconPicker'
+import { ContextMenu, type CtxMenu } from './page/ContextMenu'
 
 type Drag =
   | { kind: 'pending'; start: Pt; hit: El | null; onSelected: boolean; grab: 'dot' | 'cell' }
-  | { kind: 'line'; a: Pt; b: Pt; id: string }
+  | { kind: 'line'; a: Pt; b: Pt; id: string; cross: { pageId: string; a: Pt; b: Pt } | null }
   | { kind: 'box'; a: Pt; b: Pt }
-  | { kind: 'marquee'; a: Pt; b: Pt; additive: boolean }
-  | { kind: 'move'; start: Pt; dx: number; dy: number }
+  | { kind: 'marquee'; ca: Pt; cb: Pt; additive: boolean; hit: El | null } // 화면 좌표: 양쪽 페이지에 걸쳐 고를 수 있게
+  | { kind: 'move'; start: Pt } // 옮기는 양은 화면 픽셀로 store.moveDelta에
   | { kind: 'erase'; ids: string[]; last: Pt }
+  | { kind: 'paint'; start: Pt } // 형광펜: 시작점에서 가로나 세로 한 줄로만. 칠할 칸은 store.paintPreview에 (양쪽 페이지)
+  | { kind: 'resize'; id: string; corner: Corner; orig: Rect; r: Rect } // 네모칸 모서리 손잡이로 크기 바꾸기
 
-/** 볼펜, 연필 모양 마우스 커서 (끝이 왼쪽 아래) */
-const svgCursor = (svg: string, fallback: string) =>
-  `url("data:image/svg+xml,${encodeURIComponent(svg)}") 4 27, ${fallback}`
-const CURSORS: Record<PenType, string> = {
-  pencil: svgCursor(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(45 16 16)"><rect x="12.5" y="0" width="7" height="20" rx="1" fill="#f2c14e" stroke="#3a3328" stroke-width="1.2"/><rect x="12.5" y="0" width="7" height="4" rx="1" fill="#e79b9b" stroke="#3a3328" stroke-width="1.2"/><rect x="12.5" y="4" width="7" height="2" fill="#c9c3b5" stroke="#3a3328" stroke-width="1"/><path d="M12.5 20 L19.5 20 L16 28.5 Z" fill="#f4dcb4" stroke="#3a3328" stroke-width="1.2" stroke-linejoin="round"/><path d="M14.6 25.3 L17.4 25.3 L16 28.5 Z" fill="#3a3328"/></g></svg>`,
-    'crosshair',
-  ),
-  ballpoint: svgCursor(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(45 16 16)"><rect x="13" y="0" width="6" height="19" rx="2.5" fill="#2f3a52" stroke="#1d2333" stroke-width="1.1"/><rect x="18.6" y="2" width="1.8" height="9" rx="0.9" fill="#c9ccd3" stroke="#1d2333" stroke-width="0.8"/><path d="M13 19 L19 19 L17.2 25 L14.8 25 Z" fill="#d8dbe0" stroke="#1d2333" stroke-width="1.1" stroke-linejoin="round"/><path d="M14.8 25 L17.2 25 L16 28.6 Z" fill="#1d2333"/></g></svg>`,
-    'crosshair',
-  ),
+/**
+ * 바깥쪽 종이 단면 두께(px): 그쪽에 남은 페이지 수만큼. 왼쪽 페이지는 앞에 지난 페이지, 오른쪽(한 장 보기)은 뒤에 남은 페이지.
+ * 아무것도 없으면 표지 판 모서리만 살짝(2px), 많을수록 두꺼워지다 60쪽쯤에서 가장 두껍게.
+ */
+function stackPx(side: 'single' | 'left' | 'right', index: number, total: number) {
+  const n = side === 'left' ? index : total - 1 - index
+  return Math.round((2 + 11 * Math.min(1, Math.sqrt(Math.max(0, n) / 60))) * 10) / 10
 }
 
-/** 칸 가운데: 끌면 네모칸이 생긴다는 뜻의 십자 + 네모 */
-const BOX_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M10 2v16M2 10h16"/></g><g stroke="#2b2a28" stroke-width="1.4" stroke-linecap="round"><path d="M10 2v16M2 10h16"/></g><rect x="15" y="15" width="13" height="10" rx="1.5" fill="rgba(47,93,158,0.15)" stroke="#2f5d9e" stroke-width="1.4" stroke-dasharray="2.5 2"/><text x="18.5" y="23.3" font-size="8" font-family="sans-serif" font-weight="700" fill="#2f5d9e">T</text></svg>`,
-)}") 10 10, crosshair`
+type Corner = 'nw' | 'ne' | 'sw' | 'se'
+type Rect = { x: number; y: number; w: number; h: number }
+const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se']
 
-const ERASER_CURSOR = svgCursor(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(45 16 16)"><rect x="10" y="4" width="12" height="22" rx="2.5" fill="#f3f0ea" stroke="#3a3328" stroke-width="1.3"/><rect x="10" y="4" width="12" height="9" rx="2.5" fill="#6f8fb8" stroke="#3a3328" stroke-width="1.3"/></g></svg>`,
-  'cell',
-)
+/** 손잡이를 끈 곳에 맞춰 네모칸을 칸 경계에 맞춘다 (최소 1×1, 페이지 안) */
+function resizeRect(o: Rect, corner: Corner, p: Pt, cols: number, rows: number): Rect {
+  let x1 = o.x
+  let y1 = o.y
+  let x2 = o.x + o.w
+  let y2 = o.y + o.h
+  if (corner.includes('w')) x1 = Math.max(0, Math.min(x2 - 1, Math.round(p.x)))
+  if (corner.includes('e')) x2 = Math.min(cols, Math.max(x1 + 1, Math.round(p.x)))
+  if (corner.includes('n')) y1 = Math.max(0, Math.min(y2 - 1, Math.round(p.y)))
+  if (corner.includes('s')) y2 = Math.min(rows, Math.max(y1 + 1, Math.round(p.y)))
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+}
 
 interface Props {
   page: Page
@@ -60,11 +55,14 @@ interface Props {
   active: boolean
   side: 'single' | 'left' | 'right'
   guides: boolean
+  /** 고른 것 위 막대를 이 페이지에 띄울지 (양쪽에 걸쳐 고르면 한쪽에만) */
+  selBar: boolean
 }
 
-export default function PageView({ page, cell, active, side, guides }: Props) {
+export default function PageView({ page, cell, active, side, guides, selBar }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  // 줄 글자는 input, 네모칸은 줄바꿈(Shift+Enter)이 되는 textarea
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   const uidPrefix = useId().replace(/:/g, '')
   const dotsId = 'dots' + uidPrefix
   const pencilId = 'pencil' + uidPrefix
@@ -73,12 +71,24 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
   const pen = useStore((s) => s.lineStyle.pen)
   const selectMode = useStore((s) => s.selectMode)
   const eraserMode = useStore((s) => s.eraserMode)
+  const highlightMode = useStore((s) => s.highlightMode)
+  const hlColor = useStore((s) => s.hlColor)
+  const paintPreview = useStore((s) => s.paintPreview)
   const textBold = useStore((s) => s.textBold)
+  const textSize = useStore((s) => s.textSize)
+  const boxAlign = useStore((s) => s.boxAlign)
+  const textFont = useStore((s) => s.textFont)
+  const textValign = useStore((s) => s.textValign)
   const storePopup = useStore((s) => s.popup)
+  const crossPreview = useStore((s) => s.crossPreview)
   const popup = active ? storePopup : null
   useStore((s) => s.fontsVersion) // 글꼴이 늦게 로드되면 폭을 다시 잰다
   const cursor = active ? storeCursor : null
-  const selection = active ? storeSelection : EMPTY
+  // id는 페이지마다 겹치지 않아서, 고른 것은 펼침면 양쪽 페이지에 함께 있을 수 있다
+  const selection = storeSelection
+  const marquee = useStore((s) => s.marquee)
+  const moveDelta = useStore((s) => s.moveDelta)
+  const allPages = useStore((s) => s.pages)
 
   const [drag, setDragState] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
@@ -88,12 +98,17 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
   }
   /** 마우스가 무엇 위에 있는지: 고른 것 / 그려둔 항목 / 점(선 긋기) / 칸 가운데(네모칸) */
   const [hover, setHover] = useState<{ dot: Pt | null; zone: 'selected' | 'item' | 'dot' | 'cell' } | null>(null)
-  const composingEnter = useRef(false)
+  const composingEnter = useRef<boolean | 'shift'>(false)
+  // 오른쪽 클릭 메뉴
+  const [ctx, setCtx] = useState<CtxMenu | null>(null)
+  const closeCtx = useCallback(() => setCtx(null), [])
 
   const { cols, rows, elements } = page
   const editing = cursor?.editId ? elements.find((e) => e.id === cursor.editId) : undefined
   const inputValue = editing && (editing.type === 'text' || editing.type === 'box') ? editing.text : ''
   const inputBold = editing && (editing.type === 'text' || editing.type === 'box') ? !!editing.bold : textBold
+  const inputSize = editing && (editing.type === 'text' || editing.type === 'box') ? editing.size : textSize
+  const inputFont = fontOf(editing && (editing.type === 'text' || editing.type === 'box') ? editing.font : textFont)
 
   // 칸이 바뀌면 커서를 글자 끝으로
   useLayoutEffect(() => {
@@ -106,7 +121,7 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
     } else if (document.activeElement === input) {
       input.blur()
     }
-  }, [cursor?.x, cursor?.y, cursor?.editId, cursor === null])
+  }, [cursor?.x, cursor?.y, cursor?.editId, cursor === null, editing?.type === 'box'])
 
   useEffect(() => setDrag(null), [page.id])
 
@@ -124,25 +139,53 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
       return
     }
     const st = useStore.getState()
-    st.focusPage(page.id) // 펼침면에서 다른 쪽 페이지를 누르면 그 페이지로
+    const p = toGrid(e)
+    // 네모칸 모서리 손잡이: 크기 바꾸기 (쓰는 중이면 쓰기는 그대로 둔다)
+    const handle = (e.target as Element).closest?.<SVGElement>('[data-handle]')
+    if (handle) {
+      const box = elements.find((el) => el.id === handle.dataset.id)
+      if (box?.type === 'box') {
+        try {
+          svgRef.current!.setPointerCapture(e.pointerId)
+        } catch {
+          /* 캡처가 안 되는 환경 */
+        }
+        const orig = { x: box.x, y: box.y, w: box.w, h: box.h }
+        setDrag({ kind: 'resize', id: box.id, corner: handle.dataset.handle as Corner, orig, r: orig })
+        return
+      }
+    }
+    // 펼침면에서 다른 쪽 페이지를 누르면 그 페이지로. 이미 고른 것을 잡았으면 고른 상태를 유지한다.
+    const pre = hitTest(elements, p, st.selection)
+    // Shift를 누르고 있으면 반대쪽 페이지를 눌러도 이미 고른 것을 유지 (양쪽에 걸쳐 하나씩 추가)
+    st.focusPage(page.id, e.shiftKey || (!!pre && st.selection.includes(pre.id)))
     if (st.popup) st.setPopup(null)
     const sel = useStore.getState().selection
-    const p = toGrid(e)
     try {
       svgRef.current!.setPointerCapture(e.pointerId)
     } catch {
       /* 일부 환경에서는 캡처가 안 될 수 있다 */
     }
+    if (st.highlightMode) {
+      const c = { x: e.clientX, y: e.clientY }
+      st.setPaintPreview(addPaintCells({}, c, c))
+      setDrag({ kind: 'paint', start: c })
+      return
+    }
     if (st.eraserMode) {
-      const first = hitTest(elements, p)
+      const first = hitTest(elements, p, [], true)
       setDrag({ kind: 'erase', ids: first ? [first.id] : [], last: p })
       return
     }
-    const hit = hitTest(elements, p, sel)
+    // 고르기 도구에서는 형광펜도 눌러서 고를 수 있다 (평소에는 칠한 칸 위에도 글자를 쓰게 형광펜은 건너뛴다)
+    const hit = hitTest(elements, p, sel, st.selectMode)
     const onSelected = !!hit && sel.includes(hit.id)
-    if ((st.selectMode || e.shiftKey) && !onSelected) {
+    // Shift: 항상 고르기(끌면 사각형, 누르면 하나 넣고 빼기). 고르기 도구: 고른 것을 잡으면 옮기기
+    if (e.shiftKey || (st.selectMode && !onSelected)) {
       st.closeCursor()
-      setDrag({ kind: 'marquee', a: p, b: p, additive: e.shiftKey })
+      const c = { x: e.clientX, y: e.clientY }
+      setDrag({ kind: 'marquee', ca: c, cb: c, additive: e.shiftKey, hit })
+      st.setMarquee({ x1: c.x, y1: c.y, x2: c.x, y2: c.y })
       return
     }
     setDrag({ kind: 'pending', start: p, hit, onSelected, grab: distToDot(p) <= DOT_GRAB ? 'dot' : 'cell' })
@@ -154,7 +197,7 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
     if (!d) {
       if (e.pointerType !== 'mouse') return
       const st = useStore.getState()
-      const sel = active ? st.selection : EMPTY
+      const sel = st.selection
       const hit = hitTest(elements, p, sel)
       const nearDot = distToDot(p) <= DOT_GRAB
       // 선 끝은 점 위에 있어서, 선 위라도 점 근처면 이어서 그을 수 있게 펜으로
@@ -166,7 +209,8 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
             : nearDot
               ? 'dot'
               : 'cell'
-      const dot = !st.selectMode && !st.eraserMode && zone === 'dot' ? nearestDot(p, cols, rows) : null
+      // 선을 그을 수 있는 점 미리보기: 고르기·지우개·형광펜일 때는 선을 긋지 않으니 안 보인다
+      const dot = !st.selectMode && !st.eraserMode && !st.highlightMode && zone === 'dot' ? nearestDot(p, cols, rows) : null
       if (hover?.zone !== zone || hover?.dot?.x !== dot?.x || hover?.dot?.y !== dot?.y) {
         setHover({ dot, zone })
       }
@@ -178,30 +222,51 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
         if (Math.hypot(p.x - d.start.x, p.y - d.start.y) < DRAG_THRESHOLD) return
         st.closeCursor()
         if (d.onSelected) {
-          setDrag({ kind: 'move', start: d.start, dx: Math.round(p.x - d.start.x), dy: Math.round(p.y - d.start.y) })
+          setDrag({ kind: 'move', start: d.start })
+          st.setMoveDelta({ dx: (p.x - d.start.x) * cell, dy: (p.y - d.start.y) * cell })
           return
         }
         st.setSelection([])
         if (d.grab === 'dot') {
           const a = nearestDot(d.start, cols, rows)
-          setDrag({ kind: 'line', a, b: axisEnd(a, p, cols, rows), id: uid() })
+          setDrag({ kind: 'line', a, b: axisEnd(a, p, cols, rows), id: uid(), cross: null })
         } else {
           setDrag({ kind: 'box', a: cellOf(d.start, cols, rows), b: cellOf(p, cols, rows) })
         }
         return
       }
-      case 'line':
-        setDrag({ ...d, b: axisEnd(d.a, p, cols, rows) })
+      case 'line': {
+        // 펼침면: 가로로 긋다가 반대쪽 페이지로 넘어가면 이 페이지는 끝 점까지, 반대쪽은 첫 점부터
+        const cross = crossTarget(e, d.a, p)
+        const b = cross ? { x: side === 'left' ? cols - 1 : 1, y: d.a.y } : axisEnd(d.a, p, cols, rows)
+        setDrag({ ...d, b, cross })
+        st.setCrossPreview(cross && cross.b.x !== cross.a.x ? { ...cross, id: d.id + 'x' } : null)
         return
+      }
       case 'box':
         setDrag({ ...d, b: cellOf(p, cols, rows) })
         return
-      case 'marquee':
-        setDrag({ ...d, b: p })
+      case 'marquee': {
+        const cb = { x: e.clientX, y: e.clientY }
+        setDrag({ ...d, cb })
+        st.setMarquee({ x1: Math.min(d.ca.x, cb.x), y1: Math.min(d.ca.y, cb.y), x2: Math.max(d.ca.x, cb.x), y2: Math.max(d.ca.y, cb.y) })
         return
+      }
       case 'move':
-        setDrag({ ...d, dx: Math.round(p.x - d.start.x), dy: Math.round(p.y - d.start.y) })
+        st.setMoveDelta({ dx: (p.x - d.start.x) * cell, dy: (p.y - d.start.y) * cell })
         return
+      case 'resize':
+        setDrag({ ...d, r: resizeRect(d.orig, d.corner, p, cols, rows) })
+        return
+      case 'paint': {
+        // 더 많이 움직인 방향(가로/세로)으로만 곧게 칠한다
+        const a = d.start
+        const dx = e.clientX - a.x
+        const dy = e.clientY - a.y
+        const b = Math.abs(dx) >= Math.abs(dy) ? { x: e.clientX, y: a.y } : { x: a.x, y: e.clientY }
+        st.setPaintPreview(addPaintCells({}, a, b))
+        return
+      }
       case 'erase': {
         // 지나간 길을 촘촘히 훑어서 닿은 것을 모두 지운다
         const ids = new Set(d.ids)
@@ -211,6 +276,8 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
           const h = hitTest(
             elements.filter((el) => !ids.has(el.id)),
             q,
+            [],
+            true,
           )
           if (h) ids.add(h.id)
         }
@@ -218,6 +285,25 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
         return
       }
     }
+  }
+
+  /** 반대쪽 페이지에 이어 그릴 부분. 가운데 접히는 부분은 비우고, 양쪽 페이지의 점들 사이에만 긋는다. */
+  const crossTarget = (e: React.PointerEvent, a: Pt, p: Pt) => {
+    if (side === 'single') return null
+    if (Math.abs(p.x - a.x) < Math.abs(p.y - a.y)) return null // 세로 선은 넘어가지 않음
+    if (side === 'left' ? p.x <= cols : p.x >= 0) return null // 아직 이 페이지 안
+    const other = document.querySelector<SVGSVGElement>(`.page-wrap.${side === 'left' ? 'right' : 'left'} .page-svg`)
+    const pageId = other?.dataset.pageId
+    if (!other || !pageId) return null
+    const ocols = other.viewBox.baseVal.width
+    const orows = other.viewBox.baseVal.height
+    if (a.y < 1 || a.y > orows - 1) return null
+    const r = other.getBoundingClientRect()
+    const ox = (e.clientX - r.left) / cell
+    const first = side === 'left' ? 1 : ocols - 1
+    const reached = side === 'left' ? ox > 1 : ox < ocols - 1
+    const bx = Math.max(1, Math.min(ocols - 1, ox))
+    return { pageId, a: { x: first, y: a.y }, b: { x: reached ? bx : first, y: a.y } }
   }
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -228,7 +314,7 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
     const p = toGrid(e)
     switch (d.kind) {
       case 'pending': {
-        if (d.hit?.type === 'line') {
+        if (d.hit?.type === 'line' || d.hit?.type === 'icon') {
           st.closeCursor()
           st.setSelection([d.hit.id])
           return
@@ -255,7 +341,14 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
       }
       case 'line': {
         const b = { x: Math.round(d.b.x), y: Math.round(d.b.y) }
-        if (d.a.x !== b.x || d.a.y !== b.y) st.addLine(d.a, b, d.id)
+        const pieces: { pageId: string; a: Pt; b: Pt; id: string }[] = []
+        if (d.a.x !== b.x || d.a.y !== b.y) pieces.push({ pageId: page.id, a: d.a, b, id: d.id })
+        if (d.cross) {
+          const cb = { x: Math.round(d.cross.b.x), y: d.cross.a.y }
+          if (cb.x !== d.cross.a.x) pieces.push({ pageId: d.cross.pageId, a: d.cross.a, b: cb, id: d.id + 'x' })
+        }
+        st.setCrossPreview(null)
+        if (pieces.length) st.addLinePieces(pieces)
         return
       }
       case 'box': {
@@ -266,40 +359,77 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
         return
       }
       case 'marquee': {
-        const box = {
-          x1: Math.min(d.a.x, d.b.x),
-          y1: Math.min(d.a.y, d.b.y),
-          x2: Math.max(d.a.x, d.b.x),
-          y2: Math.max(d.a.y, d.b.y),
+        // 거의 안 움직이고 뗐으면 클릭: 누른 항목 하나를 넣거나(Shift면 넣고 빼기) 고르기 해제
+        if (Math.hypot(e.clientX - d.ca.x, e.clientY - d.ca.y) < 5) {
+          st.setMarquee(null)
+          const cur = st.selection
+          if (!d.hit) st.setSelection(d.additive ? cur : [])
+          else if (!d.additive) st.setSelection([d.hit.id])
+          else st.setSelection(cur.includes(d.hit.id) ? cur.filter((id) => id !== d.hit!.id) : [...cur, d.hit.id])
+          return
         }
-        const ids = elements.filter((el) => boxTouches(elBox(el), box)).map((el) => el.id)
+        // 화면에 펼쳐진 모든 페이지에서, 사각형에 걸친 것을 고른다
+        const m = { x1: Math.min(d.ca.x, e.clientX), y1: Math.min(d.ca.y, e.clientY), x2: Math.max(d.ca.x, e.clientX), y2: Math.max(d.ca.y, e.clientY) }
+        const ids: string[] = []
+        document.querySelectorAll<SVGSVGElement>('.page-svg').forEach((svg) => {
+          const pg = st.pages.find((x) => x.id === svg.dataset.pageId)
+          if (!pg) return
+          const r = svg.getBoundingClientRect()
+          const c = r.width / svg.viewBox.baseVal.width
+          const box = { x1: (m.x1 - r.left) / c, y1: (m.y1 - r.top) / c, x2: (m.x2 - r.left) / c, y2: (m.y2 - r.top) / c }
+          if (box.x2 < 0 || box.x1 > pg.cols || box.y2 < 0 || box.y1 > pg.rows) return
+          ids.push(...pg.elements.filter((el) => boxTouches(elBox(el), box)).map((el) => el.id))
+        })
+        st.setMarquee(null)
         st.setSelection(d.additive ? Array.from(new Set([...st.selection, ...ids])) : ids)
         return
       }
-      case 'move':
-        st.moveSelection(d.dx, d.dy)
+      case 'resize': {
+        st.resizeBox(d.id, d.r)
+        if (st.cursor?.editId === d.id) inputRef.current?.focus({ preventScroll: true })
         return
+      }
+      case 'move': {
+        const all = st.pages
+        st.applyPlacements(placeSelection(all, st.selection, (p.x - d.start.x) * cell, (p.y - d.start.y) * cell))
+        return
+      }
       case 'erase':
         st.deleteIds(d.ids)
         return
+      case 'paint': {
+        const pv = st.paintPreview ?? {}
+        st.setPaintPreview(null)
+        st.paintCells(
+          Object.fromEntries(Object.entries(pv).map(([id, keys]) => [id, keys.map((k) => ({ x: +k.split(',')[0], y: +k.split(',')[1] }))])),
+          st.hlColor,
+        )
+        return
+      }
     }
   }
 
-  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const st = useStore.getState()
     const c = st.cursor
     if (!c) return
     // 한글 조합 중 Enter는 조합만 끝낸다. 줄바꿈은 keyup에서 처리.
     if (e.nativeEvent.isComposing || e.keyCode === 229) {
-      if (e.key === 'Enter') composingEnter.current = true
+      if (e.key === 'Enter') composingEnter.current = e.shiftKey ? 'shift' : true
       return
     }
     if (e.metaKey || e.ctrlKey) return // ⌘B, ⌘Z 등은 전체 단축키에서 처리
     // 팝업 단축키는 팝업이 먼저 처리한다. 그 밖의 키를 누르면 팝업을 닫고 평소처럼 쓴다.
     if (st.popup) st.setPopup(null)
     if (editing?.type === 'box') {
+      // Shift+Enter: 네모칸 안에서 줄바꿈 (textarea 기본 동작). Enter·Esc: 쓰기 마치기
+      if (e.key === 'Enter' && e.shiftKey) {
+        composingEnter.current = false
+        return
+      }
       if (e.key === 'Enter' || e.key === 'Escape') {
         e.preventDefault()
+        composingEnter.current = false
         st.closeCursor()
       }
       return
@@ -310,6 +440,8 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
     switch (e.key) {
       case 'Enter':
         e.preventDefault()
+        // 조합 중 Enter 뒤에 일반 Enter가 또 오는 브라우저(크롬): 여기서 한 번만 내려가고 keyup에선 안 내려간다
+        composingEnter.current = false
         st.openAt(c.x, c.y + 1)
         break
       case 'Escape':
@@ -333,7 +465,7 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
       case 'ArrowRight':
         if (atEnd) {
           e.preventDefault()
-          st.openAt(c.x + (input.value ? textCells(input.value, inputBold) : 1), c.y)
+          st.openAt(c.x + (input.value ? textCells(input.value, inputBold, inputSize, inputFont.key) : 1), c.y)
         }
         break
       case 'Backspace':
@@ -345,29 +477,57 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
     }
   }
 
-  const onInputKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onInputKeyUp = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && composingEnter.current) {
+      const shift = composingEnter.current === 'shift'
       composingEnter.current = false
       const st = useStore.getState()
       const c = st.cursor
       if (!c) return
-      if (editing?.type === 'box') st.closeCursor()
-      else st.openAt(c.x, c.y + 1)
+      if (editing?.type === 'box') {
+        if (!shift) return st.closeCursor()
+        // 한글 조합 중 Shift+Enter: 조합만 끝났으니 줄바꿈을 직접 넣는다
+        const t = e.currentTarget
+        const at = t.selectionStart ?? t.value.length
+        if (t.value[at - 1] === '\n') return // 브라우저가 이미 넣었으면 그대로
+        const v = t.value.slice(0, at) + '\n' + t.value.slice(t.selectionEnd ?? at)
+        st.typeText(v)
+        requestAnimationFrame(() => t.setSelectionRange(at + 1, at + 1))
+      } else st.openAt(c.x, c.y + 1)
     }
   }
 
-  const moving = drag?.kind === 'move' ? drag : null
+  // 옮기는 중: 고른 것은 실제로 놓일 페이지·칸에 보여준다 (반대쪽 페이지로 넘어가는 것 포함)
+  const placements = moveDelta ? placeSelection(allPages, selection, moveDelta.dx, moveDelta.dy) : null
   const erasing = drag?.kind === 'erase' ? drag.ids : null
-  const shown = moving
-    ? elements.map((el) => (selection.includes(el.id) ? translate(el, moving.dx, moving.dy) : el))
+  const resizing = drag?.kind === 'resize' ? drag : null
+  const shown = placements
+    ? [...elements.filter((el) => !selection.includes(el.id)), ...placements.filter((pl) => pl.to === page.id).map((pl) => pl.el)]
     : erasing
       ? elements.filter((el) => !erasing.includes(el.id))
-      : elements
+      : resizing
+        ? elements.map((el) => (el.id === resizing.id ? ({ ...el, ...resizing.r } as El) : el))
+        : elements
+  // 고른 것 막대·오른쪽 클릭 메뉴는 닫힐 때도 잠깐 남아 스르륵 사라진다
+  const barLinger = useLinger(!drag && !moveDelta && !marquee && selBar && selection.length > 0 ? { elements: shown, selection } : null)
+  const ctxLinger = useLinger(ctx)
+  // 크기를 바꿀 수 있는 네모칸: 쓰고 있거나 혼자 고른 것, 1×1보다 클 때
+  const resizable = shown.find(
+    (el): el is Extract<El, { type: 'box' }> =>
+      el.type === 'box' &&
+      (el.w > 1 || el.h > 1 || resizing?.id === el.id) &&
+      (cursor?.editId === el.id || (selection.length === 1 && selection[0] === el.id)) &&
+      !highlightMode &&
+      !eraserMode &&
+      !moveDelta,
+  )
 
   // 커서: 지우개 / 옮기는 중 / 고른 것(잡기) / 그려둔 항목(손가락) / 선 긋기(펜) / 네모칸(네모 커서)
-  const svgCursorStyle = eraserMode
+  const svgCursorStyle = highlightMode
+    ? highlighterCursor(hlColor)
+    : eraserMode
     ? ERASER_CURSOR
-    : moving
+    : moveDelta
       ? 'grabbing'
       : hover?.zone === 'selected'
         ? 'grab'
@@ -386,45 +546,74 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
   let inputStyle: React.CSSProperties = { left: -9999, top: 0, width: 10, height: 10, opacity: 0, pointerEvents: 'none' }
   if (cursor && editing?.type === 'box') {
     const fs = boxFontSize({ ...editing, text: inputValue })
+    const fsR = fs * inputFont.scale
+    const n = boxLines(inputValue).length
+    // 그려지는 글자와 같은 줄 간격·같은 세로 자리에 오게
+    const ys = boxLineYs(editing.valign, fsR, editing.h, n)
+    const firstY = ys[0]
+    // 줄 간격: 그려지는 줄 사이 거리 그대로 (칸 줄에 맞춘 경우는 칸 높이)
+    const lh = n > 1 ? ys[1] - ys[0] : fsR * BOX_LINE_GAP
     inputStyle = {
       left: editing.x * cell,
       top: editing.y * cell,
       width: editing.w * cell,
       height: editing.h * cell,
-      lineHeight: `${editing.h * cell}px`,
-      fontSize: fs * cell,
-      fontFamily: FONT_FAMILY,
-      ...boldCss(inputBold, cell, fs / FONT_SIZE),
+      lineHeight: `${lh * cell}px`,
+      paddingTop: Math.max(0, (firstY - lh / 2) * cell),
+      paddingBottom: 0,
+      fontSize: fs * inputFont.scale * cell,
+      fontFamily: inputFont.family,
+      ...boldCss(inputBold, cell, (fs * inputFont.scale) / FONT_SIZE, editing.color),
+      ...(editing.color ? { color: editing.color } : {}),
       paddingLeft: BOX_PAD * cell,
       paddingRight: BOX_PAD * cell,
+      textAlign: editing.align ?? 'left',
+      // 양쪽 정렬: 직접 줄을 바꾼 줄도 그려지는 글자처럼 양쪽으로 벌린다
+      ...(editing.align === 'justify' ? { textAlignLast: 'justify' as const } : {}),
+      // 크기를 바꾸는 동안은 그려진 미리보기를 보여준다
+      visibility: resizing?.id === editing.id ? 'hidden' : undefined,
       pointerEvents: inputValue && !selectMode && !eraserMode ? 'auto' : 'none',
     }
   } else if (cursor) {
-    const w = Math.min(Math.max(TEXT_PAD + measureText(inputValue, inputBold) + 1, 1.5), cols - cursor.x)
+    const align0 = editing?.type === 'text' ? (editing.align ?? 'left') : boxAlign
+    // 줄 글자의 양쪽 정렬은 왼쪽과 같다
+    const align = align0 === 'justify' ? 'left' : align0
+    const n = textInk({ x: cursor.x, text: inputValue, bold: inputBold, size: inputSize, align, font: inputFont.key }).n
+    // 왼쪽 정렬: 오른쪽으로 늘어나는 입력칸 / 가운데·오른쪽: 글자가 차지한 칸에 딱 맞춘 입력칸
+    const w =
+      align === 'left'
+        ? Math.min(Math.max(TEXT_PAD + textWidth(inputValue, inputBold, inputSize, inputFont.key) + 1, 1.5), cols - cursor.x)
+        : Math.min(n, cols - cursor.x)
     inputStyle = {
+      textAlign: align,
+      paddingRight: align === 'right' ? TEXT_PAD * cell : 0,
       left: cursor.x * cell,
       top: cursor.y * cell,
       width: w * cell,
       height: cell,
-      lineHeight: `${cell}px`,
-      fontSize: FONT_SIZE * cell,
-      fontFamily: FONT_FAMILY,
-      ...boldCss(inputBold, cell),
-      paddingLeft: TEXT_PAD * cell,
+      ...vPlace(editing?.type === 'text' ? editing.valign : textValign, fontSizeOf(inputSize) * inputFont.scale, 1, cell),
+      fontSize: fontSizeOf(inputSize) * inputFont.scale * cell,
+      fontFamily: inputFont.family,
+      ...boldCss(inputBold, cell, (fontSizeOf(inputSize) * inputFont.scale) / FONT_SIZE, editing?.type === 'text' ? editing.color : undefined),
+      ...(editing?.type === 'text' && editing.color ? { color: editing.color } : {}),
+      paddingLeft: align === 'left' ? TEXT_PAD * cell : 0,
       // 빈 칸이면 클릭이 도트지로 가게 (같은 칸을 한 번 더 누르면 기호 팝업)
       pointerEvents: inputValue && !selectMode && !eraserMode ? 'auto' : 'none',
     }
   }
 
   return (
-    <div className={'page-wrap ' + side} style={{ width: cols * cell, height: rows * cell }}>
+    <div
+      className={'page-wrap ' + side}
+      style={{ width: cols * cell, height: rows * cell, ['--stack' as string]: `${stackPx(side, allPages.findIndex((p) => p.id === page.id), allPages.length)}px` }}
+    >
       <div className="stack-side" />
       <div className="stack-bottom" />
-      {guides && <Guides cols={cols} rows={rows} cell={cell} side={side} />}
       <div className="page">
         <svg
           ref={svgRef}
           className="page-svg"
+          data-page-id={page.id}
           style={{ cursor: svgCursorStyle }}
           width={cols * cell}
           height={rows * cell}
@@ -432,12 +621,33 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerCancel={() => setDrag(null)}
+          onPointerCancel={() => {
+            setDrag(null)
+            const st = useStore.getState()
+            st.setCrossPreview(null)
+            st.setMarquee(null)
+            st.setMoveDelta(null)
+          }}
           onPointerLeave={() => setHover(null)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            const st = useStore.getState()
+            if (dragRef.current) return
+            const p = toGrid(e as unknown as React.PointerEvent)
+            st.focusPage(page.id, true)
+            st.setPopup(null)
+            const hit = hitTest(elements, p, st.selection, true)
+            if (hit && !st.selection.includes(hit.id)) {
+              st.closeCursor()
+              st.setSelection([hit.id])
+            }
+            const wrap = svgRef.current!.getBoundingClientRect()
+            setCtx({ left: e.clientX - wrap.left, top: e.clientY - wrap.top, cx: Math.floor(p.x), cy: Math.floor(p.y), onItem: !!hit })
+          }}
         >
           <defs>
             <pattern id={dotsId} x={-0.5} y={-0.5} width={1} height={1} patternUnits="userSpaceOnUse">
-              <circle cx={0.5} cy={0.5} r={Math.max(0.05, 1.1 / cell)} className="dot" />
+              <circle cx={0.5} cy={0.5} r={Math.max(0.04, 0.85 / cell)} className="dot" />
             </pattern>
             {/* 연필: 종이 결에 따라 흑연이 듬성듬성 묻는 느낌 */}
             <filter id={pencilId} x="-20%" y="-20%" width="140%" height="140%" filterUnits="objectBoundingBox">
@@ -453,7 +663,30 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
           </defs>
           <rect width={cols} height={rows} className="paper" />
           <rect x={0.5} y={0.5} width={cols - 1} height={rows - 1} fill={`url(#${dotsId})`} />
+          {guides && <GuideMarks cols={cols} rows={rows} side={side} />}
+          {/* 쪽번호: 마지막 점 줄 아래 여백 가운데 */}
+          <text x={cols / 2} y={rows - 0.42} fontSize={Math.max(0.36, 9 / cell)} textAnchor="middle" dominantBaseline="central" className="page-no-mark">
+            {allPages.findIndex((p) => p.id === page.id) + 1}
+          </text>
 
+          {/* 형광펜 칸: 글자·선 뒤에 */}
+          {shown.map((el) => (el.type === 'mark' ? <MarkGlyph key={el.id} el={el} /> : null))}
+          {hlColor &&
+            paintPreview?.[page.id]?.length &&
+            (() => {
+              // 칠하는 중에도 마커 획으로: 지나간 칸을 한 획으로 묶어서
+              const cells = paintPreview[page.id].map((k) => k.split(',').map(Number) as [number, number])
+              const xs = cells.map((c) => c[0])
+              const ys = cells.map((c) => c[1])
+              const m: MarkEl = { id: 'pv', type: 'mark', x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) + 1, h: Math.max(...ys) - Math.min(...ys) + 1, color: hlColor }
+              return <MarkGlyph el={m} preview />
+            })()}
+          {paintPreview?.[page.id]?.map((k) => {
+            const [px, py] = k.split(',').map(Number)
+            return hlColor ? null : (
+              <rect key={'pv' + k} x={px + 0.06} y={py + 0.06} width={0.88} height={0.88} rx={0.1} className="hl-erase" />
+            )
+          })}
           {cursor && !cursor.editId && (
             <rect x={cursor.x} y={cursor.y} width={1} height={1} rx={0.12} className="cursor-cell" />
           )}
@@ -466,14 +699,18 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
                 <line key={'sel' + el.id} x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} className="sel-line" strokeWidth={0.42} />
               ) : el.type === 'box' ? (
                 <rect key={'sel' + el.id} x={el.x} y={el.y} width={el.w} height={el.h} rx={0.15} className="sel-box" />
+              ) : el.type === 'mark' ? (
+                <rect key={'sel' + el.id} x={el.x} y={el.y} width={el.w} height={el.h} className="sel-box" />
+              ) : el.type === 'icon' ? (
+                <rect key={'sel' + el.id} x={el.x} y={el.y} width={el.size} height={el.size} rx={0.15} className="sel-box" />
               ) : el.type === 'bullet' ? (
                 <rect key={'sel' + el.id} x={el.x + 0.05} y={el.y + 0.05} width={0.9} height={0.9} rx={0.15} className="sel-box" />
               ) : (
                 <rect
                   key={'sel' + el.id}
-                  x={el.x}
+                  x={textInk(el).start - TEXT_PAD}
                   y={el.y + 0.06}
-                  width={TEXT_PAD * 2 + measureText(el.text, el.bold)}
+                  width={TEXT_PAD * 2 + textWidth(el.text, el.bold, el.size, el.font)}
                   height={0.88}
                   rx={0.15}
                   className="sel-box"
@@ -482,37 +719,30 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
             )}
 
           {shown.map((el) => {
+            if (el.type === 'mark') return null
             if (el.type === 'line') return <InkLine key={el.id} line={el} filterId={pencilId} />
             if (el.type === 'bullet') return <BulletGlyph key={el.id} b={el} elements={shown} />
+            if (el.type === 'icon') return <IconGlyph key={el.id} el={el} />
             if (el.type === 'box') {
               const isEditing = cursor?.editId === el.id
               return (
                 <g key={el.id}>
                   {isEditing && <rect x={el.x} y={el.y} width={el.w} height={el.h} rx={0.15} className="box-edit" />}
-                  <text
-                    x={el.x + BOX_PAD}
-                    y={el.y + el.h / 2 + 0.04 * el.h}
-                    dominantBaseline="central"
-                    fontSize={boxFontSize(el)}
-                    fontFamily={FONT_FAMILY}
-                    {...boldProps(el.bold, boxFontSize(el) / FONT_SIZE)}
-                    className="ink-text"
-                    visibility={isEditing ? 'hidden' : undefined}
-                  >
-                    {el.text}
-                  </text>
+                  <BoxText el={el} hidden={isEditing && resizing?.id !== el.id} />
                 </g>
               )
             }
             return (
               <text
                 key={el.id}
-                x={el.x + TEXT_PAD}
-                y={el.y + 0.52}
+                x={textAnchor(el).x}
+                textAnchor={textAnchor(el).anchor}
+                y={el.y + textMidY(el.valign, fontSizeOf(el.size) * fontOf(el.font).scale)}
                 dominantBaseline="central"
-                fontSize={FONT_SIZE}
-                fontFamily={FONT_FAMILY}
-                {...boldProps(el.bold)}
+                fontSize={fontSizeOf(el.size) * fontOf(el.font).scale}
+                fontFamily={fontOf(el.font).family}
+                {...boldProps(el.bold, (fontSizeOf(el.size) * fontOf(el.font).scale) / FONT_SIZE, el.color)}
+                style={el.color ? { fill: el.color } : undefined}
                 className="ink-text"
                 visibility={cursor?.editId === el.id ? 'hidden' : undefined}
               >
@@ -524,9 +754,24 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
           {popup?.kind === 'insert' && (
             <rect x={popup.x} y={popup.y} width={1} height={1} rx={0.12} className="cursor-cell" />
           )}
-          {hover?.dot && !drag && <circle cx={hover.dot.x} cy={hover.dot.y} r={0.2} className="hover-dot" />}
+          {hover?.dot && !drag && !highlightMode && <circle cx={hover.dot.x} cy={hover.dot.y} r={0.2} className="hover-dot" />}
+          {resizable &&
+            CORNERS.map((c) => {
+              const hx = resizable.x + (c.includes('e') ? resizable.w : 0)
+              const hy = resizable.y + (c.includes('s') ? resizable.h : 0)
+              // 보이는 손잡이는 작게, 잡는 곳은 넉넉하게
+              const vis = Math.max(0.28, 9 / cell)
+              const grab = Math.max(0.8, 22 / cell)
+              return (
+                <g key={c} className={'box-handle ' + c} data-handle={c} data-id={resizable.id}>
+                  <rect x={hx - grab / 2} y={hy - grab / 2} width={grab} height={grab} fill="transparent" />
+                  <rect x={hx - vis / 2} y={hy - vis / 2} width={vis} height={vis} rx={vis * 0.25} className="box-handle-dot" />
+                </g>
+              )
+            })}
 
           {drag?.kind === 'line' && <LivePreview drag={drag} filterId={pencilId} />}
+          {crossPreview?.pageId === page.id && <LivePreview drag={crossPreview} filterId={pencilId} />}
           {drag?.kind === 'box' && (
             <rect
               x={Math.min(drag.a.x, drag.b.x)}
@@ -537,339 +782,46 @@ export default function PageView({ page, cell, active, side, guides }: Props) {
               className="box-preview"
             />
           )}
-          {drag?.kind === 'marquee' && (
-            <rect
-              x={Math.min(drag.a.x, drag.b.x)}
-              y={Math.min(drag.a.y, drag.b.y)}
-              width={Math.abs(drag.b.x - drag.a.x)}
-              height={Math.abs(drag.b.y - drag.a.y)}
-              className="marquee"
-            />
-          )}
+          {marquee && svgRef.current && <MarqueeRect m={marquee} svg={svgRef.current} cell={cell} />}
         </svg>
 
-        <input
-          ref={inputRef}
-          className="ink-input"
-          aria-label="글자 입력"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          value={inputValue}
-          onChange={(e) => useStore.getState().typeText(e.target.value)}
-          onKeyDown={onInputKeyDown}
-          onKeyUp={onInputKeyUp}
-          style={inputStyle}
-        />
+        {editing?.type === 'box' ? (
+          <textarea
+            ref={inputRef}
+            className="ink-input box-input"
+            aria-label="네모칸 글자 입력 (Shift+Enter 줄바꿈)"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            rows={1}
+            value={inputValue}
+            onChange={(e) => useStore.getState().typeText(e.target.value)}
+            onKeyDown={onInputKeyDown}
+            onKeyUp={onInputKeyUp}
+            style={inputStyle}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            className="ink-input"
+            aria-label="글자 입력"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={inputValue}
+            onChange={(e) => useStore.getState().typeText(e.target.value)}
+            onKeyDown={onInputKeyDown}
+            onKeyUp={onInputKeyUp}
+            style={inputStyle}
+          />
+        )}
       </div>
-      {popup && <SymbolPopup popup={popup} elements={elements} cell={cell} />}
-      {!drag && selection.length > 0 && <SelectionBar elements={shown} selection={selection} cell={cell} cols={cols} />}
-    </div>
-  )
-}
-
-const EMPTY: string[] = []
-
-function cellOf(p: Pt, cols: number, rows: number): Pt {
-  return { x: Math.max(0, Math.min(cols - 1, Math.floor(p.x))), y: Math.max(0, Math.min(rows - 1, Math.floor(p.y))) }
-}
-
-function InkLine({ line, filterId, live }: { line: LineEl; filterId: string; live?: boolean }) {
-  const pen = line.pen ?? 'ballpoint'
-  const paths = strokePaths(line.x1, line.y1, line.x2, line.y2, {
-    width: line.width,
-    dash: line.dash,
-    pen,
-    seed: line.id,
-    settle: !live,
-  })
-  return (
-    <g
-      fill={line.color}
-      filter={pen === 'pencil' ? `url(#${filterId})` : undefined}
-      opacity={pen === 'pencil' ? 0.82 : 0.94}
-    >
-      {paths.map((d, i) => (
-        <path key={i} d={d} />
-      ))}
-    </g>
-  )
-}
-
-/** 긋는 동안: 펜 끝을 따라 선이 쓱 늘어난다 */
-function LivePreview({ drag, filterId }: { drag: { a: Pt; b: Pt; id: string }; filterId: string }) {
-  const style = useStore((s) => s.lineStyle)
-  const line: LineEl = { id: drag.id, type: 'line', x1: drag.a.x, y1: drag.a.y, x2: drag.b.x, y2: drag.b.y, ...style }
-  const end = { x: Math.round(drag.b.x), y: Math.round(drag.b.y) }
-  return (
-    <>
-      <InkLine line={line} filterId={filterId} live />
-      <circle cx={end.x} cy={end.y} r={0.13} className="snap-dot" />
-    </>
-  )
-}
-
-/** 분할 그리드: 페이지 바깥에 1/3, 1/2, 2/3 지점을 연하게 표시 */
-function Guides({ cols, rows, cell, side }: { cols: number; rows: number; cell: number; side: Props['side'] }) {
-  const marks = [
-    { f: 1 / 3, label: '⅓', major: false },
-    { f: 1 / 2, label: '½', major: true },
-    { f: 2 / 3, label: '⅔', major: false },
-  ]
-  const W = cols * cell
-  const H = rows * cell
-  return (
-    <div className="guides" aria-hidden>
-      {marks.map((m) => (
-        <div key={'t' + m.f}>
-          <span className={'g-tick v top' + (m.major ? ' major' : '')} style={{ left: m.f * W }} />
-          <span className={'g-tick v bottom' + (m.major ? ' major' : '')} style={{ left: m.f * W }} />
-          <span className="g-label top" style={{ left: m.f * W }}>
-            {m.label}
-          </span>
-        </div>
-      ))}
-      {marks.map((m) => (
-        <div key={'s' + m.f}>
-          {side !== 'right' && (
-            <>
-              <span className={'g-tick h left' + (m.major ? ' major' : '')} style={{ top: m.f * H }} />
-              <span className="g-label left" style={{ top: m.f * H }}>
-                {m.label}
-              </span>
-            </>
-          )}
-          {side !== 'left' && (
-            <>
-              <span className={'g-tick h right' + (m.major ? ' major' : '')} style={{ top: m.f * H }} />
-              <span className="g-label right" style={{ top: m.f * H }}>
-                {m.label}
-              </span>
-            </>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-const INK = '#2b2a28'
-
-/** 불렛 기호 하나. 펜으로 찍은 것처럼 약간 두툼하게. */
-function Glyph({ state, cx, cy }: { state: BulletState; cx: number; cy: number }) {
-  const sw = 0.075
-  switch (state) {
-    case 'task':
-      return <circle cx={cx} cy={cy} r={0.105} fill={INK} />
-    case 'done':
-      return (
-        <g stroke={INK} strokeWidth={sw} strokeLinecap="round">
-          <line x1={cx - 0.19} y1={cy - 0.19} x2={cx + 0.19} y2={cy + 0.19} />
-          <line x1={cx + 0.19} y1={cy - 0.19} x2={cx - 0.19} y2={cy + 0.19} />
-        </g>
-      )
-    case 'migrated':
-      return (
-        <polyline
-          points={`${cx - 0.1},${cy - 0.2} ${cx + 0.13},${cy} ${cx - 0.1},${cy + 0.2}`}
-          fill="none"
-          stroke={INK}
-          strokeWidth={sw}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )
-    case 'scheduled':
-      return (
-        <polyline
-          points={`${cx + 0.1},${cy - 0.2} ${cx - 0.13},${cy} ${cx + 0.1},${cy + 0.2}`}
-          fill="none"
-          stroke={INK}
-          strokeWidth={sw}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )
-    case 'event':
-      return <circle cx={cx} cy={cy} r={0.17} fill="none" stroke={INK} strokeWidth={0.065} />
-    case 'note':
-      return <line x1={cx - 0.17} y1={cy} x2={cx + 0.17} y2={cy} stroke={INK} strokeWidth={sw} strokeLinecap="round" />
-  }
-}
-
-function BulletGlyph({ b, elements }: { b: BulletEl; elements: El[] }) {
-  const item = b.cancelled ? itemTextOf(elements, b) : null
-  const strike = item
-    ? strokePaths(item.x + 0.02, item.y + 0.55, item.x + TEXT_PAD + measureText(item.text, item.bold) + 0.12, item.y + 0.5, {
-        width: 1,
-        dash: false,
-        pen: 'ballpoint',
-        seed: b.id + 'strike',
-      })
-    : []
-  return (
-    <g>
-      <Glyph state={b.state} cx={b.x + 0.5} cy={b.y + 0.52} />
-      {strike.map((d, i) => (
-        <path key={i} d={d} fill={INK} opacity={0.9} />
-      ))}
-    </g>
-  )
-}
-
-const INSERT_OPTIONS: { state: BulletState; label: string; key: string; keys: string[] }[] = [
-  { state: 'task', label: '할 일', key: '*', keys: ['*', 't', '.'] },
-  { state: 'event', label: '일정', key: 'O', keys: ['o'] },
-  { state: 'note', label: '메모', key: '-', keys: ['-'] },
-]
-
-const STATE_OPTIONS: { state: BulletState; label: string; key: string; keys: string[] }[] = [
-  { state: 'task', label: '할 일', key: 'T', keys: ['t', '*', '.'] },
-  { state: 'done', label: '완료', key: 'X', keys: ['x'] },
-  { state: 'migrated', label: '미룸', key: '>', keys: ['>'] },
-  { state: 'scheduled', label: '일정으로', key: '<', keys: ['<'] },
-  { state: 'event', label: '일정', key: 'O', keys: ['o'] },
-  { state: 'note', label: '메모', key: '-', keys: ['-'] },
-]
-
-/** 기호 바로 위에 뜨는 팝업. 바깥을 누르거나 Esc로 닫힌다. PC는 키 하나로 고른다. */
-function SymbolPopup({ popup, elements, cell }: { popup: NonNullable<ReturnType<typeof useStore.getState>['popup']>; elements: El[]; cell: number }) {
-  const bullet = popup.kind === 'state' ? (elements.find((e) => e.id === popup.id) as BulletEl | undefined) : undefined
-  const x = popup.kind === 'insert' ? popup.x : bullet?.x ?? 0
-  const y = popup.kind === 'insert' ? popup.y : bullet?.y ?? 0
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return
-      const st = useStore.getState()
-      const k = e.key.toLowerCase()
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        st.setPopup(null)
-        return
-      }
-      const opts = popup.kind === 'insert' ? INSERT_OPTIONS : STATE_OPTIONS
-      const hit = opts.find((o) => o.keys.includes(k))
-      if (hit) {
-        e.preventDefault()
-        e.stopPropagation()
-        if (popup.kind === 'insert') st.addBullet(hit.state)
-        else st.setBulletState(popup.id, hit.state)
-        return
-      }
-      if (popup.kind === 'state' && (k === 'c' || e.key === 'Delete' || e.key === 'Backspace')) {
-        e.preventDefault()
-        e.stopPropagation()
-        if (k === 'c') st.toggleCancel(popup.id)
-        else st.deleteElement(popup.id)
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [popup])
-
-  if (popup.kind === 'state' && !bullet) return null
-  const st = useStore.getState()
-  const below = y < 3
-  const opts = popup.kind === 'insert' ? INSERT_OPTIONS : STATE_OPTIONS
-
-  return (
-    <div
-      className={'sym-popup' + (below ? ' below' : '')}
-      style={{ left: (x + 0.5) * cell, top: below ? (y + 1) * cell + 6 : y * cell - 6 }}
-      onPointerDown={(e) => e.preventDefault()}
-      role="menu"
-    >
-      {opts.map((o) => (
-        <button
-          key={o.state}
-          role="menuitem"
-          className={'sym-opt' + (bullet?.state === o.state ? ' on' : '')}
-          onClick={() => (popup.kind === 'insert' ? st.addBullet(o.state) : st.setBulletState(popup.id, o.state))}
-        >
-          <svg viewBox="0 0 1 1" width="22" height="22">
-            <Glyph state={o.state} cx={0.5} cy={0.5} />
-          </svg>
-          <span className="sym-label">{o.label}</span>
-          <kbd>{o.key}</kbd>
-        </button>
-      ))}
-      {bullet && (
-        <>
-          <span className="sym-sep" />
-          <button role="menuitem" className={'sym-opt' + (bullet.cancelled ? ' on' : '')} onClick={() => st.toggleCancel(bullet.id)}>
-            <span className="sym-strike">가</span>
-            <span className="sym-label">취소</span>
-            <kbd>C</kbd>
-          </button>
-          <button role="menuitem" className="sym-opt" onClick={() => st.deleteElement(bullet.id)}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" />
-            </svg>
-            <span className="sym-label">지우기</span>
-            <kbd>Del</kbd>
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
-/** 글꼴에 굵은 굵기가 없어서, 획 바깥에 같은 색 외곽선을 둘러 굵게 보이게 한다 */
-const BOLD_STROKE = 0.04
-function boldProps(bold?: boolean, scale = 1) {
-  return bold ? { stroke: INK, strokeWidth: BOLD_STROKE * scale, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const } : {}
-}
-function boldCss(bold: boolean, cell: number, scale = 1): React.CSSProperties {
-  return bold ? { WebkitTextStroke: `${BOLD_STROKE * cell * scale}px ${INK}`, paintOrder: 'stroke' } : {}
-}
-
-/** 고른 것 위에 뜨는 작은 막대: 지우기, 복제, 굵게, 고르기 해제 */
-function SelectionBar({ elements, selection, cell, cols }: { elements: El[]; selection: string[]; cell: number; cols: number }) {
-  const sel = elements.filter((e) => selection.includes(e.id))
-  if (!sel.length) return null
-  const boxes = sel.map(elBox)
-  const x1 = Math.min(...boxes.map((b) => b.x1))
-  const x2 = Math.max(...boxes.map((b) => b.x2))
-  const y1 = Math.min(...boxes.map((b) => b.y1))
-  const y2 = Math.max(...boxes.map((b) => b.y2))
-  const below = y1 < 2.5
-  const cx = Math.min(Math.max((x1 + x2) / 2, 3), cols - 3)
-  const hasText = sel.some((e) => e.type === 'text' || e.type === 'box')
-  const st = useStore.getState()
-  return (
-    <div
-      className={'sel-bar' + (below ? ' below' : '')}
-      style={{ left: cx * cell, top: below ? y2 * cell + 8 : y1 * cell - 8 }}
-      onPointerDown={(e) => e.preventDefault()}
-    >
-      <span className="sel-count">{sel.length}개</span>
-      <button onClick={() => st.deleteSelection()} title="지우기 (Delete)">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-          <path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" />
-        </svg>
-        지우기
-      </button>
-      <button onClick={() => st.duplicateSelection()} title="복제 (한 칸 옆에)">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7">
-          <rect x="8" y="8" width="12" height="12" rx="2" />
-          <path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3" />
-        </svg>
-        복제
-      </button>
-      {hasText && (
-        <button onClick={() => st.toggleBold()} title="굵게 (⌘B)">
-          <b className="sel-b">B</b>
-          굵게
-        </button>
-      )}
-      <button onClick={() => st.setSelection([])} title="고르기 해제 (Esc)" aria-label="고르기 해제">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
+      {popup && popup.kind !== 'icon' && <SymbolPopup popup={popup} elements={elements} cell={cell} />}
+      {ctxLinger.value && <ContextMenu menu={ctxLinger.value} onClose={closeCtx} leaving={ctxLinger.leaving} />}
+      {popup?.kind === 'icon' && <IconPicker x={popup.x} y={popup.y} cols={cols} rows={rows} cell={cell} replacing={!!popup.replaceId} />}
+      {barLinger.value && <SelectionBar elements={barLinger.value.elements} selection={barLinger.value.selection} cell={cell} cols={cols} leaving={barLinger.leaving} />}
     </div>
   )
 }
