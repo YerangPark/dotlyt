@@ -753,12 +753,6 @@ export const useStore = create<State>()((set, get) => ({
   setPaintPreview: (paintPreview) => set({ paintPreview }),
   paintCells: (cells, color) => {
     const s = get()
-    // 한 번에 두 페이지에 걸쳐 가로로 칠했으면 두 조각이 가운데에서 이어지게: 왼쪽 페이지 조각은 오른쪽 끝이, 오른쪽 조각은 왼쪽 끝이 곧다
-    const painted = Object.keys(cells).filter((id) => cells[id]?.length)
-    const flat = (id: string) => new Set(cells[id].map((c) => c.y)).size === 1
-    const across = color && painted.length === 2 && painted.every(flat)
-    const order = across ? [...painted].sort((a, b) => s.pages.findIndex((p) => p.id === a) - s.pages.findIndex((p) => p.id === b)) : []
-    const cutOf = (pageId: string): MarkEl['cut'] => (!across ? undefined : pageId === order[0] ? 'right' : 'left')
     set(
       withPages(s, (els, pageId) => {
         const todo = cells[pageId]
@@ -777,7 +771,6 @@ export const useStore = create<State>()((set, get) => ({
             w: Math.max(...xs) - Math.min(...xs) + 1,
             h: Math.max(...ys) - Math.min(...ys) + 1,
             color,
-            ...(cutOf(pageId) ? { cut: cutOf(pageId) } : {}),
           }
           // 같은 자리를 다시 그으면 덮어쓴다 (새 획 안에 다 들어가는 예전 획은 뺀다)
           const inside = (m: MarkEl) => m.x >= stroke.x && m.y >= stroke.y && m.x + m.w <= stroke.x + stroke.w && m.y + m.h <= stroke.y + stroke.h

@@ -170,8 +170,6 @@ export interface MarkEl {
   w: number
   h: number
   color: string
-  /** 펼침면 반대쪽 페이지로 이어 칠한 획: 이어지는 쪽 끝은 거칠게 끝내지 않고 곧게 (한 칸이어도 점이 아니라 띠) */
-  cut?: 'left' | 'right'
 }
 
 export type El = TextEl | LineEl | BoxEl | BulletEl | IconEl | MarkEl
