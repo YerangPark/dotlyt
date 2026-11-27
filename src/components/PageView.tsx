@@ -717,7 +717,10 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
               const cells = paintPreview[page.id].map((k) => k.split(',').map(Number) as [number, number])
               const xs = cells.map((c) => c[0])
               const ys = cells.map((c) => c[1])
-              const m: MarkEl = { id: 'pv', type: 'mark', x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) + 1, h: Math.max(...ys) - Math.min(...ys) + 1, color: hlColor }
+              // 반대쪽 페이지까지 가로로 이어 칠하는 중이면 이어지는 쪽 끝을 곧게
+              const across = Object.keys(paintPreview).filter((id) => paintPreview[id]?.length).length === 2 && new Set(ys).size === 1
+              const cut: MarkEl['cut'] = across ? (side === 'left' ? 'right' : side === 'right' ? 'left' : undefined) : undefined
+              const m: MarkEl = { id: 'pv', type: 'mark', x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) + 1, h: Math.max(...ys) - Math.min(...ys) + 1, color: hlColor, ...(cut ? { cut } : {}) }
               return <MarkGlyph el={m} preview />
             })()}
           {paintPreview?.[page.id]?.map((k) => {

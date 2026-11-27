@@ -206,7 +206,7 @@ export function MarkGlyph({ el, preview }: { el: MarkEl; preview?: boolean }) {
   const j = (a: number) => (r() - 0.5) * 2 * a
   const f3 = (n: number) => Math.round(n * 1000) / 1000
   // 칸 하나만: 마커를 콕 찍은 작은 점 (살짝 찌그러지게). 찍은 가운데는 잉크가 고여 조금 더 진하다
-  if (!vertical && el.w === 1 && el.h === 1) {
+  if (!vertical && !el.cut && el.w === 1 && el.h === 1) {
     const cx = el.x + 0.5 + j(0.03)
     const cy = el.y + 0.56 + j(0.03)
     const tilt = r() * Math.PI
@@ -265,5 +265,11 @@ export function MarkGlyph({ el, preview }: { el: MarkEl; preview?: boolean }) {
         [x1 + 0.02 + j(0.03), y2 + j(0.015)],
         [x1 - 0.02 + j(0.02), (y1 + y2) / 2 + j(0.05)],
       ]
+  // 반대쪽 페이지로 이어지는 끝: 종이 끝까지 곧게 (가운데 접히는 곳에서 끊긴 듯 보이지 않게)
+  if (!vertical && el.cut === 'right') pts.splice(2, 3, [x2 + 0.02, y1 + j(0.015)], [x2 + 0.02, y2 + j(0.015)])
+  if (!vertical && el.cut === 'left') {
+    pts.splice(6, 2, [x1 - 0.02, y2 + j(0.015)])
+    pts[0] = [x1 - 0.02, y1 + j(0.015)]
+  }
   return <path d={'M' + pts.map(([x, y]) => `${f(x)} ${f(y)}`).join('L') + 'Z'} fill={el.color} className={'hl-mark' + (preview ? ' preview' : '')} />
 }
