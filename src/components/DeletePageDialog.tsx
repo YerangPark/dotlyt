@@ -1,4 +1,5 @@
 import { useStore } from '../store'
+import { ModalClose } from './ModalClose'
 
 /** 페이지(펼침면) 지우기 확인. 되돌릴 수 없어서 쓴 내용과 스티커 수를 보여준다. */
 export function DeletePageDialog({ ids, label, onClose }: { ids: string[]; label: string; onClose: () => void }) {
@@ -10,6 +11,7 @@ export function DeletePageDialog({ ids, label, onClose }: { ids: string[]; label
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal small" role="alertdialog" aria-label="페이지 지우기" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+        <ModalClose onClose={onClose} />
         <h2>{label}을 지울까요?</h2>
         <p className="hint">
           {count ? `쓴 내용 ${count}개` : '빈 페이지'}

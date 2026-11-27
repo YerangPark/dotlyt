@@ -32,7 +32,7 @@ function idleBookHeight(ratio: number) {
  * 메인 화면(표지): 노트를 누르거나 "노트 펼치기"를 누르면 표지가 넘어가며 마지막으로 쓰던 페이지가 열린다.
  * closing이면(노트에서 돌아올 때) 펼친 책이 닫히면서 시작한다.
  */
-export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; closing?: boolean }) {
+export function CoverScreen({ onOpen, closing = false, autoOpen = false }: { onOpen: () => void; closing?: boolean; autoOpen?: boolean }) {
   const notebook = useStore((s) => s.notebook)!
   const pages = useStore((s) => s.pages)
   const [phase, setPhase] = useState<'idle' | 'opening' | 'closing'>('idle')
@@ -71,6 +71,15 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
     window.setTimeout(onOpen, 1450)
   }
 
+  // 노트를 막 만들었으면: 표지가 나타나고 잠깐 보여 준 뒤 저절로 펼친다
+  const openRef = useRef(open)
+  openRef.current = open
+  useEffect(() => {
+    if (!autoOpen) return
+    const t = window.setTimeout(() => openRef.current(), reduceMotion() ? 0 : 1000)
+    return () => window.clearTimeout(t)
+  }, [autoOpen])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -89,7 +98,7 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
   const greeting = hour < 11 ? '좋은 아침이에요,' : hour < 17 ? '오늘 오후도 한 장,' : hour < 22 ? '하루를 정리할 시간,' : '자기 전에 한 줄만,'
 
   return (
-    <div className={'cover-screen' + (opening ? ' opening' : '') + (phase === 'closing' ? ' closing' : '') + (leaving ? ' leaving' : '')}>
+    <div className={'cover-screen' + (opening ? ' opening' : '') + (phase === 'closing' ? ' closing' : '') + (leaving ? ' leaving' : '') + (autoOpen ? ' fresh' : '')}>
       <header className="cover-head">
         <div className="brand-mark" aria-label="Dotlyt">
           <svg viewBox="0 0 28 28" width="26" height="26" aria-hidden>
@@ -106,7 +115,7 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
       <main className="cover-hero">
         <section className="cover-text">
           <p className="cover-caption">{greeting}</p>
-          <h1 className="cover-title">{notebook.name}</h1>
+          {notebook.name && <h1 className="cover-title">{notebook.name}</h1>}
           <p className="cover-body-copy">
             {written === 0 ? (
               <>

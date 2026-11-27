@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { IndexEditor, IndexList, IndexTabs } from './components/IndexTabs'
+import { IndexEditor, IndexTabs } from './components/IndexTabs'
 import { CoverScreen } from './components/CoverScreen'
 import { DeletePageDialog } from './components/DeletePageDialog'
 import NotebookForm from './components/NotebookForm'
@@ -13,7 +13,10 @@ import { ShortcutHelp } from './components/ShortcutHelp'
 import { FindBar } from './components/FindBar'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { PageTurn, type Turn } from './components/PageTurn'
+import { GuideTour, guideDone } from './components/GuideTour'
 import { TooltipLayer, tip } from './components/Tooltip'
+import { ModalClose } from './components/ModalClose'
+import { MoreMenu } from './components/MoreMenu'
 
 export default function App() {
   const notebook = useStore((s) => s.notebook)
@@ -22,17 +25,30 @@ export default function App() {
   const [view, setView] = useState<'cover' | 'notebook'>('cover')
   const [fromCover, setFromCover] = useState(false)
   const [backToCover, setBackToCover] = useState(false)
+  const [setupLeaving, setSetupLeaving] = useState(false)
+  const [justCreated, setJustCreated] = useState(false)
 
-  if (!notebook) {
+  if (!notebook || setupLeaving) {
     return (
-      <div className="setup">
+      <div className={'setup' + (setupLeaving ? ' leaving' : '')}>
         <h1 className="brand">Dotlyt</h1>
         <p className="setup-sub">도트지 노트를 한 권 만들어요.</p>
         <NotebookForm
           submitLabel="노트 만들기"
           onSubmit={(nb) => {
-            createNotebook(nb)
-            setView('notebook')
+            if (setupLeaving) return
+            // 만들기 화면이 스르륵 사라진 뒤 → 새 노트 표지가 나타나고 → 저절로 펼쳐진다
+            const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+            setSetupLeaving(true)
+            window.setTimeout(
+              () => {
+                createNotebook(nb)
+                setJustCreated(true)
+                setView('cover')
+                setSetupLeaving(false)
+              },
+              reduce ? 0 : 320,
+            )
           }}
         />
       </div>
@@ -42,7 +58,9 @@ export default function App() {
     return (
       <CoverScreen
         closing={backToCover}
+        autoOpen={justCreated}
         onOpen={() => {
+          setJustCreated(false)
           setBackToCover(false)
           setFromCover(true)
           setView('notebook')
@@ -78,7 +96,6 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const updateNotebook = useStore((s) => s.updateNotebook)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [indexEditFor, setIndexEditFor] = useState<string | null>(null)
-  const [indexListOpen, setIndexListOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [overviewOpen, setOverviewOpen] = useState(false)
 
@@ -99,6 +116,13 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const [helpOpen, setHelpOpen] = useState(false)
   const [findOpen, setFindOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
+  // 처음 쓰는 사람을 위한 안내: 아직 끝내지 않았으면 노트를 펼친 뒤 잠깐 있다가 자동으로
+  const [guideOpen, setGuideOpen] = useState(false)
+  useEffect(() => {
+    if (guideDone()) return
+    const t = window.setTimeout(() => setGuideOpen(true), fromCover ? 1200 : 500)
+    return () => window.clearTimeout(t)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState()
@@ -216,7 +240,8 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   }, [])
 
   // PC 넓은 화면은 양쪽 펼침면
-  const wide = desk.w >= 760
+  // 넓은 화면, 또는 휴대폰을 가로로 눕혔을 때(가로가 세로보다 길고 어느 정도 넓으면) 양쪽 펼침면
+  const wide = desk.w >= 760 || (desk.w > desk.h * 1.2 && desk.w >= 560)
   useEffect(() => setSpread(wide), [wide, setSpread])
 
   const start = spread ? spreadStart(pageIndex) : pageIndex
@@ -225,14 +250,110 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   // 페이지를 화면에 맞게. 격자 칸 수는 그대로, 칸 크기(px)만 바뀐다.
   // 가로 여백: 남은 종이 두께 + 오른쪽 인덱스 스티커 자리
   const narrow = desk.w < 600
+  // 한 장씩 볼 때도 실제 노트처럼: 펼침면의 왼쪽 페이지(짝수 번째)는 왼쪽 페이지 모양, 아니면 오른쪽 페이지 모양
+  const singleSide: 'left' | 'right' = pageIndex % 2 === 0 ? 'left' : 'right'
   // 넓은 화면은 노트 양옆에 넘기기 버튼 자리(48px씩)도 비운다
-  const padW = 28 + (spread ? 30 : 18) + (narrow ? 14 : 56) + (narrow ? 0 : 96 + 44)
+  // 노트 양옆 넘기기 버튼 자리: 넓은 화면은 넉넉히(인덱스 자리 맞춤 포함), 휴대폰은 가는 띠만큼
+  const padW = 28 + (spread ? 30 : 18) + (narrow ? 34 : 56) + (narrow ? 2 * 26 : 96 + 44)
   const padH = 28 + 14
   const totalCols = shownPages.reduce((n, p) => n + p.cols, 0)
   const maxRows = Math.max(1, ...shownPages.map((p) => p.rows))
-  const cell = totalCols
+  const fitCell = totalCols
     ? Math.max(8, Math.min(30, Math.floor(Math.min((desk.w - padW) / totalCols, (desk.h - padH) / maxRows))))
     : 20
+  // 확대(휴대폰에서 두 손가락으로 벌리기, 또는 확대 버튼): 칸 크기를 키우고 책상을 스크롤
+  const [zoom, setZoom] = useState(1)
+  const cell = zoom > 1 ? Math.round(fitCell * zoom) : fitCell
+  const pendingScroll = useRef<{ x: number; y: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = deskRef.current
+    const p = pendingScroll.current
+    if (!el || !p) return
+    el.scrollLeft = p.x
+    el.scrollTop = p.y
+    pendingScroll.current = null
+  })
+  /** 화면의 (cx, cy)를 기준으로 확대 배율을 바꾼다 (그 자리가 손가락 아래 그대로 있게) */
+  const zoomAt = useCallback(
+    (next: number, cx: number, cy: number, from = zoom, scroll?: { x: number; y: number }, at?: { x: number; y: number }) => {
+      const el = deskRef.current
+      if (!el) return
+      const z = Math.min(3, Math.max(1, next))
+      const r = el.getBoundingClientRect()
+      const sx = scroll?.x ?? el.scrollLeft
+      const sy = scroll?.y ?? el.scrollTop
+      const ax = (at?.x ?? cx) - r.left
+      const ay = (at?.y ?? cy) - r.top
+      const k = z / from
+      const target = z === 1 ? { x: 0, y: 0 } : { x: (sx + ax) * k - (cx - r.left), y: (sy + ay) * k - (cy - r.top) }
+      if (z === zoom) {
+        // 배율이 그대로면(두 손가락 이동만) 바로 스크롤
+        el.scrollLeft = target.x
+        el.scrollTop = target.y
+        return
+      }
+      pendingScroll.current = target
+      setZoom(z)
+    },
+    [zoom],
+  )
+  // 두 손가락: 벌리고 오므리면 확대·축소, 같이 움직이면 이동 (한 손가락은 그대로 쓰기·그리기)
+  useEffect(() => {
+    const el = deskRef.current
+    if (!el) return
+    const touches = new Map<number, { x: number; y: number }>()
+    let g: { d0: number; z0: number; c0: { x: number; y: number }; s0: { x: number; y: number } } | null = null
+    const zoomNow = { v: 1 }
+    const pts = () => [...touches.values()]
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (touches.size >= 2) {
+        // 두 손가락이면 화면 움직이기: 첫 손가락이 시작한 그리기(선·네모칸·형광펜 등)는 취소하고, 이 손가락은 종이에 전하지 않는다
+        e.stopPropagation()
+        window.dispatchEvent(new Event('dotlyt:cancel-draw'))
+      }
+      if (touches.size === 2) {
+        const [a, b] = pts()
+        g = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: zoomNow.v, c0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, s0: { x: el.scrollLeft, y: el.scrollTop } }
+      }
+    }
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (!g || touches.size < 2) return
+      e.preventDefault()
+      e.stopPropagation()
+      const [a, b] = pts()
+      const d = Math.hypot(a.x - b.x, a.y - b.y)
+      const c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      zoomAtRef.current(g.z0 * (d / g.d0), c.x, c.y, g.z0, g.s0, g.c0)
+    }
+    const up = (e: PointerEvent) => {
+      touches.delete(e.pointerId)
+      if (touches.size < 2) g = null
+    }
+    zoomNowRef.current = zoomNow
+    el.addEventListener('pointerdown', down, true)
+    el.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      el.removeEventListener('pointerdown', down, true)
+      el.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
+  const zoomAtRef = useRef(zoomAt)
+  zoomAtRef.current = zoomAt
+  const zoomNowRef = useRef<{ v: number } | null>(null)
+  if (zoomNowRef.current) zoomNowRef.current.v = zoom
+  const zoomBy = (step: number) => {
+    const r = deskRef.current?.getBoundingClientRect()
+    if (!r) return
+    zoomAt(Math.round((zoom + step) * 2) / 2, r.left + r.width / 2, r.top + r.height / 2)
+  }
   const shownKey = shownPages.map((p) => p.id).join(',')
   // 넘긴 페이지 크기가 달라 노트 크기가 바뀌면, 툭 바뀌지 않고 살짝 부드럽게 (이전 크기에서 새 크기로)
   const nbRef = useRef<HTMLDivElement>(null)
@@ -272,7 +393,9 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
     if (from.some((p) => !p)) return
     const before = pages.findIndex((p) => p.id === prev.ids[0])
     const now = pages.findIndex((p) => p.id === shownPages[0].id)
-    setTurn({ key: performance.now(), dir: now > before ? 1 : -1, from: from as typeof shownPages, to: shownPages, spread })
+    // 한 장씩 볼 때 같은 펼침면 안(왼쪽 ↔ 오른쪽)이면 시선을 옮기듯 밀고, 다른 펼침면이면 책장을 넘긴다
+    const slide = !spread && Math.floor(before / 2) === Math.floor(now / 2)
+    setTurn({ key: performance.now(), dir: now > before ? 1 : -1, from: from as typeof shownPages, to: shownPages, spread, slide })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownKey, spread, page?.id])
   const endTurn = useCallback(() => setTurn(null), [])
@@ -329,7 +452,7 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
             +
           </button>
           <button
-            className="icon-btn del"
+            className="icon-btn del bar-wide"
             onClick={() => setConfirmDelete(true)}
             {...tip('페이지 지우기', spread ? '이 펼침면을 지워요' : '이 페이지를 지워요')}
           >
@@ -339,32 +462,33 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           </button>
         </nav>
         <div className="topbar-right">
-          <button className="icon-btn" onClick={() => setTemplatesOpen(true)} {...tip('템플릿', '페이지 틀 저장하고 불러오기', 'templates')}>
+          <button className="icon-btn bar-wide" onClick={() => setTemplatesOpen(true)} {...tip('템플릿', '페이지 틀 저장하고 불러오기', 'templates')}>
             <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
               <rect x="4" y="3.5" width="16" height="17" rx="2" />
               <path d="M4 9h16M10 9v11.5" />
             </svg>
           </button>
-          <button className={'icon-btn' + (findOpen ? ' on' : '')} onClick={() => setFindOpen((v) => !v)} {...tip('찾기', '노트 전체에서 글자 찾기', 'find')}>
+          <button className={'icon-btn bar-wide' + (findOpen ? ' on' : '')} onClick={() => setFindOpen((v) => !v)} {...tip('찾기', '노트 전체에서 글자 찾기', 'find')}>
             <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
               <circle cx="11" cy="11" r="6.5" />
               <path d="M16 16l4.5 4.5" />
             </svg>
           </button>
-          <button
-            className={'icon-btn' + (page?.index ? ' on' : '')}
-            onClick={() => (narrow ? setIndexListOpen(true) : page && setIndexEditFor(page.id))}
-            {...tip('인덱스 스티커', page?.index ? '이 페이지 인덱스 수정' : '이 페이지에 인덱스 붙이기')}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round">
-              <path d="M5 4h9l5 4-5 4H5z" fill={page?.index ? 'currentColor' : 'none'} />
-              <path d="M5 4v17" strokeLinecap="round" />
-            </svg>
-          </button>
           <span className={'save ' + saveStatus}>
             {saveStatus === 'saving' ? '저장 중…' : saveStatus === 'saved' ? '저장됨' : '저장 실패'}
           </span>
-          <button className="icon-btn" onClick={() => setSettingsOpen(true)} {...tip('노트 설정', '이름 · 크기 · 표지 색')}>
+          {/* 휴대폰: 자주 안 쓰는 것은 ⋯ 메뉴로 */}
+          <MoreMenu
+            items={[
+              { label: '찾기', onClick: () => setFindOpen(true) },
+              { label: '템플릿', onClick: () => setTemplatesOpen(true) },
+              { label: spread ? '이 펼침면 지우기' : '이 페이지 지우기', onClick: () => setConfirmDelete(true), danger: true },
+              { label: '노트 설정', onClick: () => setSettingsOpen(true) },
+              // 휴대폰은 ? 키를 누를 수 없으니 여기서 (사용 안내 다시 보기도 이 창에 있다)
+              { label: '도움말', onClick: () => setHelpOpen(true) },
+            ]}
+          />
+          <button className="icon-btn bar-wide" onClick={() => setSettingsOpen(true)} {...tip('노트 설정', '이름 · 크기 · 표지 색')}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />
@@ -374,14 +498,14 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
       </header>
 
       <main className="workspace">
-        <div className="desk" ref={deskRef}>
-          {page && desk.w > 0 && !narrow && (
+        <div className={'desk' + (zoom > 1 ? ' zoomed' : '')} ref={deskRef}>
+          {page && desk.w > 0 && (
             // 노트 바깥 왼쪽: 앞으로 넘기기 (첫 페이지면 자리만 차지하고 숨김)
             <button
-              className="turn-btn prev"
+              className={'turn-btn prev' + (narrow ? ' slim' : '')}
               onPointerMove={followGlow}
               // 오른쪽은 노트와 버튼 사이에 인덱스 스티커 자리(44px)가 있어서, 왼쪽도 같은 만큼 띄워 양쪽 여백을 맞춘다
-              style={{ visibility: atStart ? 'hidden' : undefined, marginRight: 50 }}
+              style={{ visibility: atStart ? 'hidden' : undefined, marginRight: narrow ? 4 : 50 }}
               onClick={() => goRelative(-1)}
               {...tip(spread ? '이전 펼침면' : '이전 페이지', undefined, 'prevPage')}
             >
@@ -391,14 +515,19 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
             </button>
           )}
           {page && desk.w > 0 && (
-            <div ref={nbRef} className={'notebook' + (spread ? ' spread' : '')} style={{ marginRight: narrow ? 12 : 44 }}>
+            <div
+              ref={nbRef}
+              className={'notebook' + (spread ? ' spread' : singleSide === 'left' ? ' single-left' : '')}
+              // 휴대폰: 스티커가 노트 밖으로 나온 만큼(왼쪽 쪽은 표지 판이 없어서 더 나온다) 띄워서, 왼쪽 버튼 간격(4px)과 맞춘다
+              style={{ marginRight: narrow ? (!spread && singleSide === 'left' ? 29 : 13) : 44 }}
+            >
               {shownPages.map((p, i) => (
                 <PageView
                   key={p.id}
                   page={p}
                   cell={cell}
                   active={p.id === page.id}
-                  side={spread ? (i === 0 ? 'left' : 'right') : 'single'}
+                  side={spread ? (i === 0 ? 'left' : 'right') : singleSide}
                   guides={showGuides}
                   selBar={p.id === selBarPage}
                 />
@@ -407,14 +536,13 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
                 shownIds={shownPages.map((p) => p.id)}
                 narrow={narrow}
                 onEdit={setIndexEditFor}
-                onOpenList={() => setIndexListOpen(true)}
               />
             </div>
           )}
-          {page && desk.w > 0 && !narrow && (
+          {page && desk.w > 0 && (
             // 노트 바깥 오른쪽: 다음으로 넘기기. 마지막이면 새 펼침면을 만들어 바로 넘어간다
             <button
-              className={'turn-btn next' + (atEnd ? ' add' : '')}
+              className={'turn-btn next' + (atEnd ? ' add' : '') + (narrow ? ' slim' : '')}
               onPointerMove={followGlow}
               onClick={() => (atEnd ? addPage() : goRelative(1))}
               {...(atEnd
@@ -433,11 +561,33 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
             </button>
           )}
         </div>
+        {narrow && (
+          <div className="zoom-ctl" role="group" aria-label="확대">
+            <button onClick={() => zoomBy(-0.5)} disabled={zoom <= 1} aria-label="축소">
+              −
+            </button>
+            <button className="zoom-val" onClick={() => zoomAt(1, 0, 0)} aria-label="원래 크기로">
+              {Math.round(zoom * 100)}%
+            </button>
+            <button onClick={() => zoomBy(0.5)} disabled={zoom >= 3} aria-label="확대">
+              +
+            </button>
+          </div>
+        )}
         <Toolbar />
       </main>
       {turn && nbRef.current && <PageTurn key={turn.key} turn={turn} host={nbRef.current} onDone={endTurn} />}
       <TooltipLayer />
-      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {helpOpen && (
+        <ShortcutHelp
+          onClose={() => setHelpOpen(false)}
+          onGuide={() => {
+            setHelpOpen(false)
+            setGuideOpen(true)
+          }}
+        />
+      )}
+      {guideOpen && <GuideTour onClose={() => setGuideOpen(false)} />}
       {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
       {templatesOpen && <TemplatesPanel onClose={() => setTemplatesOpen(false)} />}
 
@@ -450,18 +600,10 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
         />
       )}
       {indexEditPage && <IndexEditor page={indexEditPage} onClose={() => setIndexEditFor(null)} />}
-      {indexListOpen && (
-        <IndexList
-          onClose={() => setIndexListOpen(false)}
-          onAdd={() => {
-            setIndexListOpen(false)
-            if (page) setIndexEditFor(page.id)
-          }}
-        />
-      )}
       {settingsOpen && (
         <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && setSettingsOpen(false)}>
           <div className="modal" role="dialog" aria-label="노트 설정">
+            <ModalClose onClose={() => setSettingsOpen(false)} />
             <h2>노트 설정</h2>
             <NotebookForm
               initial={notebook}

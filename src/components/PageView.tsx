@@ -27,7 +27,7 @@ type Drag =
  * 바깥쪽 종이 단면 두께(px): 그쪽에 남은 페이지 수만큼. 왼쪽 페이지는 앞에 지난 페이지, 오른쪽(한 장 보기)은 뒤에 남은 페이지.
  * 아무것도 없으면 표지 판 모서리만 살짝(2px), 많을수록 두꺼워지다 60쪽쯤에서 가장 두껍게.
  */
-function stackPx(side: 'single' | 'left' | 'right', index: number, total: number) {
+export function stackPx(side: 'single' | 'left' | 'right', index: number, total: number) {
   const n = side === 'left' ? index : total - 1 - index
   return Math.round((2 + 11 * Math.min(1, Math.sqrt(Math.max(0, n) / 60))) * 10) / 10
 }
@@ -124,6 +124,19 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
   }, [cursor?.x, cursor?.y, cursor?.editId, cursor === null, editing?.type === 'box'])
 
   useEffect(() => setDrag(null), [page.id])
+  // 휴대폰에서 두 번째 손가락이 닿으면(확대·이동) 하던 그리기를 미리보기까지 지운다
+  useEffect(() => {
+    const cancel = () => {
+      if (!dragRef.current) return
+      setDrag(null)
+      const st = useStore.getState()
+      st.setMarquee(null)
+      st.setPaintPreview(null)
+      st.setCrossPreview(null)
+    }
+    window.addEventListener('dotlyt:cancel-draw', cancel)
+    return () => window.removeEventListener('dotlyt:cancel-draw', cancel)
+  }, [])
 
   const toGrid = (e: React.PointerEvent): Pt => {
     const r = svgRef.current!.getBoundingClientRect()
