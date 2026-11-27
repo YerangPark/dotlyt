@@ -208,7 +208,8 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
     const d = dragRef.current
     const p = toGrid(e)
     if (!d) {
-      if (e.pointerType !== 'mouse') return
+      // 마우스와 펜(애플펜슬을 화면 가까이 띄우면 호버가 온다)만. 손가락은 닿을 때만 이벤트가 와서 미리보기가 의미 없다
+      if (e.pointerType === 'touch') return
       const st = useStore.getState()
       const sel = st.selection
       const hit = hitTest(elements, p, sel)
