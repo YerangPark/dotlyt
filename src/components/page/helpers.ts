@@ -13,6 +13,7 @@ export function cellOf(p: Pt, cols: number, rows: number): Pt {
 export function addPaintCells(prev: Record<string, string[]>, a: Pt, b: Pt): Record<string, string[]> {
   const svgs = [...document.querySelectorAll<SVGSVGElement>('.page-svg')].map((svg) => ({
     id: svg.dataset.pageId!,
+    side: svg.closest('.page-wrap.left') ? 'left' : svg.closest('.page-wrap.right') ? 'right' : 'single',
     r: svg.getBoundingClientRect(),
     cols: svg.viewBox.baseVal.width,
     rows: svg.viewBox.baseVal.height,
@@ -31,6 +32,16 @@ export function addPaintCells(prev: Record<string, string[]>, a: Pt, b: Pt): Rec
     const cy = Math.floor((y - sv.r.top) / c)
     if (cx < 0 || cy < 0 || cx >= sv.cols || cy >= sv.rows) continue
     ;(next[sv.id] ??= new Set()).add(`${cx},${cy}`)
+  }
+  // 펼침면 양쪽에 걸쳐 칠하면 선처럼 가운데 접히는 곳은 비운다: 왼쪽 페이지 맨 오른쪽 칸, 오른쪽 페이지 맨 왼쪽 칸은 칠하지 않는다
+  const ids = Object.keys(next).filter((id) => next[id].size)
+  if (ids.length === 2) {
+    for (const sv of svgs) {
+      const set = next[sv.id]
+      if (!set) continue
+      const edge = sv.side === 'left' ? sv.cols - 1 : sv.side === 'right' ? 0 : -1
+      for (const k of [...set]) if (+k.split(',')[0] === edge) set.delete(k)
+    }
   }
   return Object.fromEntries(Object.entries(next).map(([id, set]) => [id, [...set]]))
 }
