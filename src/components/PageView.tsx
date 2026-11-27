@@ -124,6 +124,21 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
   }, [cursor?.x, cursor?.y, cursor?.editId, cursor === null, editing?.type === 'box'])
 
   useEffect(() => setDrag(null), [page.id])
+  // 아이패드 + 애플펜슬: 사파리가 펜 움직임을 손글씨 입력(Scribble)·길게 누르기·스크롤로 가로채면 선이 끊기거나 안 그려진다.
+  // 펜(stylus) 터치만 기본 동작을 막아서 그리기는 포인터 이벤트로만 처리한다 (손가락 터치는 그대로)
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const stop = (e: TouchEvent) => {
+      if ([...e.touches].some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus')) e.preventDefault()
+    }
+    el.addEventListener('touchstart', stop, { passive: false })
+    el.addEventListener('touchmove', stop, { passive: false })
+    return () => {
+      el.removeEventListener('touchstart', stop)
+      el.removeEventListener('touchmove', stop)
+    }
+  }, [])
   // 휴대폰에서 두 번째 손가락이 닿으면(확대·이동) 하던 그리기를 미리보기까지 지운다
   useEffect(() => {
     const cancel = () => {
