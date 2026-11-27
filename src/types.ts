@@ -21,6 +21,29 @@ export const COVERS = [
   { name: '스카이 블루', color: '#a9c7e0' },
 ]
 
+/** 인덱스 스티커 색: 서비스 컬러웨이(마커 오렌지 + 스티커 색 + 잉크색) */
+export const STICKER_COLORS = [
+  { name: '마커 오렌지', color: '#ff6f1e' },
+  { name: '번트 시에나', color: '#ce500a' },
+  { name: '스카이', color: '#3b82f6' },
+  { name: '버블검', color: '#ff66cf' },
+  { name: '새싹', color: '#22c55e' },
+  { name: '듀드롭', color: '#f7efe9' },
+  { name: '코코아', color: '#2b1a07' },
+  { name: '차콜', color: '#171717' },
+]
+
+/** 형광펜 색 */
+export const HIGHLIGHT_COLORS = [
+  { name: '노랑', color: '#ffe066' },
+  { name: '분홍', color: '#ffb3c7' },
+  { name: '초록', color: '#b6e3a8' },
+  { name: '하늘', color: '#a6d8f5' },
+  { name: '주황', color: '#ffc78a' },
+  { name: '보라', color: '#d4c1f2' },
+  { name: '회색', color: '#d6d3cf' },
+]
+
 export const INK_COLORS = [
   { name: '먹색', color: '#2b2a28' },
   { name: '파랑', color: '#2f5d9e' },
@@ -35,6 +58,14 @@ export interface Notebook {
 }
 
 /** 좌표는 모두 격자 칸 단위. 글자는 칸 (x, y)에서 시작, 선은 점 (x1,y1)–(x2,y2)을 잇는다. */
+import type { FontKey } from './fonts'
+
+/** 글자 크기: 아주 작게, 작게, 보통 (없으면 보통) */
+export type TextSize = 'xs' | 's' | 'm'
+export type TextAlign = 'left' | 'center' | 'right'
+/** 세로 정렬: 줄 글자는 자기 칸 안에서, 네모칸 글자는 네모칸 안에서 */
+export type TextVAlign = 'top' | 'middle' | 'bottom'
+
 export interface TextEl {
   id: string
   type: 'text'
@@ -42,6 +73,12 @@ export interface TextEl {
   y: number
   text: string
   bold?: boolean
+  size?: TextSize
+  /** 글씨체 (없으면 기본 글씨체) */
+  font?: FontKey
+  /** 글자가 차지한 칸들 안에서의 정렬 (칸 하나에 숫자를 가운데 쓰는 용도) */
+  align?: TextAlign
+  valign?: TextVAlign
 }
 
 export type PenType = 'ballpoint' | 'pencil'
@@ -70,6 +107,11 @@ export interface BoxEl {
   h: number
   text: string
   bold?: boolean
+  /** 네모칸 높이에 맞춘 크기에 곱하는 비율 */
+  size?: TextSize
+  font?: FontKey
+  align?: TextAlign
+  valign?: TextVAlign
 }
 
 /** 불렛저널 기호: 할 일 •, 완료 ×, 미룸 >, 일정으로 옮김 <, 일정 ○, 메모 – */
@@ -85,7 +127,29 @@ export interface BulletEl {
   cancelled: boolean
 }
 
-export type El = TextEl | LineEl | BoxEl | BulletEl
+/** 단색 선 아이콘 (해, 달, 밥 등). size칸 × size칸 */
+export interface IconEl {
+  id: string
+  type: 'icon'
+  x: number
+  y: number
+  icon: string
+  size: 1 | 2 | 3
+  color: string
+}
+
+/** 형광펜으로 칠한 칸들 (한 줄에서 이어진 칸을 하나로 묶어 저장). 글자 뒤에 깔린다. */
+export interface MarkEl {
+  id: string
+  type: 'mark'
+  x: number
+  y: number
+  w: number
+  h: number
+  color: string
+}
+
+export type El = TextEl | LineEl | BoxEl | BulletEl | IconEl | MarkEl
 
 /** 인덱스 스티커: 노트 오른쪽 가장자리에 붙는 탭 */
 export interface IndexTab {

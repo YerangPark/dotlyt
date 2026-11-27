@@ -8,18 +8,45 @@ interface Props {
   onCancel?: () => void
 }
 
-/** 살짝 비스듬히 놓인 입체 노트: 앞표지, 책등, 종이 단면, 고무줄, 가름끈 */
-function Notebook3D({ cover, light, title, year, ratio }: { cover: string; light: boolean; title: string; year: number; ratio: number }) {
-  const H = 280
+/** 살짝 비스듬히 놓인 입체 노트: 앞표지, 책등, 종이 단면, 고무줄, 가름끈. opening이면 표지가 넘어가며 첫 장이 드러난다. */
+export function Notebook3D({
+  cover,
+  light,
+  title,
+  year,
+  ratio,
+  height = 280,
+  opening = false,
+  closing = false,
+}: {
+  cover: string
+  light: boolean
+  title: string
+  year: number
+  ratio: number
+  height?: number
+  opening?: boolean
+  closing?: boolean
+}) {
+  const H = height
   const W = Math.round(H * ratio)
   return (
     <div className="book-stage">
-      <div className="book" style={{ width: W, height: H, ['--cover' as string]: cover }}>
+      <div className={'book' + (opening ? ' opening' : '') + (closing ? ' closing' : '')} style={{ width: W, height: H, ['--cover' as string]: cover }}>
         <div className="book-face back" />
+        {/* 뒤표지 판 안쪽: 펼쳤을 때 오른쪽 종이 밑에 받쳐 보인다 */}
+        <div className="book-face board" />
         <div className="book-face spine" />
         <div className="book-face pages-right" />
         <div className="book-face pages-top" />
         <div className="book-face pages-bottom" />
+        <div className="book-face firstpage" />
+        {/* 펼칠 때 차르륵 넘어가는 속지 */}
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="book-face leaf" style={{ ['--i' as string]: i }} />
+        ))}
+        {/* 표지 안쪽(면지): 표지를 넘길 때 보인다 */}
+        <div className="book-face front-inside" />
         <div className="book-face front" style={{ color: light ? '#2b2a28' : '#f3ede1' }}>
           <div className="book-sheen" />
           <div className="book-title">{title}</div>

@@ -1,6 +1,7 @@
-import type { BoxEl, BulletEl, El, LineEl, Pt, TextEl } from './types'
+import { fontOf, type FontKey } from './fonts'
+import type { BoxEl, BulletEl, El, LineEl, Pt, TextEl, TextSize, TextVAlign } from './types'
 
-export const FONT_FAMILY = '"Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif'
+export const FONT_FAMILY = fontOf().family
 /** 글자 크기 (격자 칸 높이 대비) */
 export const FONT_SIZE = 0.72
 /** 칸 왼쪽 가장자리에서 글자까지 여백 (칸 단위) */
@@ -12,10 +13,21 @@ export const DOT_GRAB = 0.34
 /** 네모칸 안쪽 여백 (칸 단위) */
 export const BOX_PAD = 0.25
 
+/** 줄 글자 크기 (칸 높이 대비) */
+export const FONT_SIZES: Record<TextSize, number> = { xs: 0.44, s: 0.58, m: 0.72 }
+/** 네모칸 글자: 높이에 맞춘 크기에 곱하는 비율 */
+const BOX_SCALE: Record<TextSize, number> = { xs: 0.5, s: 0.7, m: 1 }
+export const fontSizeOf = (size?: TextSize) => FONT_SIZES[size ?? 'm']
+
+/** 크기까지 반영한 글자 폭 (칸 단위) */
+export function textWidth(text: string, bold = false, size?: TextSize, font?: FontKey) {
+  return (measureText(text, bold, font) * fontSizeOf(size)) / FONT_SIZE
+}
+
 /** 네모칸 글자 크기: 칸 높이에 맞추고, 넓이를 넘으면 줄인다 */
-export function boxFontSize(b: Pick<BoxEl, 'w' | 'h' | 'text' | 'bold'>) {
-  const byH = b.h * 0.85
-  const perUnit = measureText(b.text || '가', b.bold) / FONT_SIZE
+export function boxFontSize(b: Pick<BoxEl, 'w' | 'h' | 'text' | 'bold' | 'size' | 'font'>) {
+  const byH = b.h * 0.85 * BOX_SCALE[b.size ?? 'm']
+  const perUnit = measureText(b.text || '가', b.bold, b.font) / FONT_SIZE
   const byW = (b.w - BOX_PAD * 2) / Math.max(perUnit, 0.01)
   return Math.max(0.45, Math.min(byH, byW))
 }
@@ -29,26 +41,85 @@ const cache = new Map<string, number>()
 
 export function resetMeasureCache() {
   cache.clear()
+  inkCache.clear()
 }
 
 /** 글자 폭 (칸 단위) */
-export function measureText(text: string, bold = false): number {
-  const key = (bold ? 'b|' : 'r|') + text
+/** 글자 폭 (칸 단위, 보통 크기 기준). 글씨체 배율까지 반영. */
+export function measureText(text: string, bold = false, font?: FontKey): number {
+  const f = fontOf(font)
+  const key = f.key + (bold ? '|b|' : '|r|') + text
   const hit = cache.get(key)
   if (hit !== undefined) return hit
   if (!ctx) ctx = document.createElement('canvas').getContext('2d')
   let w = text.length * FONT_SIZE
   if (ctx) {
-    ctx.font = `100px ${FONT_FAMILY}`
-    w = (ctx.measureText(text).width / 100) * FONT_SIZE + (bold ? 0.04 : 0)
+    ctx.font = `100px ${f.family}`
+    w = (ctx.measureText(text).width / 100) * FONT_SIZE * f.scale + (bold ? 0.04 : 0)
   }
   cache.set(key, w)
   return w
 }
 
 /** 글자가 차지하는 칸 수 */
-export function textCells(text: string, bold = false) {
-  return Math.max(1, Math.ceil(TEXT_PAD + measureText(text, bold) - 0.05))
+export function textCells(text: string, bold = false, size?: TextSize, font?: FontKey) {
+  return Math.max(1, Math.ceil(TEXT_PAD + textWidth(text, bold, size, font) - 0.05))
+}
+
+/** 줄 글자가 실제로 찍히는 위치: 차지한 칸(n칸) 안에서 왼쪽·가운데·오른쪽 */
+export function textInk(el: Pick<TextEl, 'x' | 'text' | 'bold' | 'size' | 'align' | 'font'>) {
+  const w = textWidth(el.text, el.bold, el.size, el.font)
+  const n = textCells(el.text, el.bold, el.size, el.font)
+  const { x, anchor } = textAnchor(el)
+  const start = anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x
+  return { start, end: start + w, n, w }
+}
+
+const inkCache = new Map<string, number>()
+
+/**
+ * 글자 획이 글자 폭 가운데에서 얼마나 치우쳐 있는지 (보통 크기 기준, 칸 단위).
+ * 예: 숫자 1은 획이 왼쪽에 몰려 있어서, 가운데 정렬할 때 이만큼 밀어야 눈으로 보기에 가운데다.
+ */
+export function inkShift(text: string, font?: FontKey, size?: TextSize) {
+  const f = fontOf(font)
+  const key = f.key + '|' + text
+  let v = inkCache.get(key)
+  if (v === undefined) {
+    v = 0
+    if (!ctx) ctx = document.createElement('canvas').getContext('2d')
+    if (ctx) {
+      ctx.font = `100px ${f.family}`
+      const m = ctx.measureText(text)
+      const inkCenter = (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2
+      v = ((m.width / 2 - inkCenter) / 100) * FONT_SIZE * f.scale
+    }
+    inkCache.set(key, v)
+  }
+  return (v * fontSizeOf(size)) / FONT_SIZE
+}
+
+/**
+ * 줄 글자를 그릴 위치. 가운데·오른쪽 정렬은 글자 폭을 재서 시작점을 계산하지 않고
+ * 칸 중심(오른쪽 끝)에 바로 맞춘다 (글꼴이 늦게 불려 와 폭을 잘못 재도 어긋나지 않게).
+ */
+export function textAnchor(el: Pick<TextEl, 'x' | 'text' | 'bold' | 'size' | 'align' | 'font'>) {
+  const a = el.align ?? 'left'
+  if (a === 'left') return { x: el.x + TEXT_PAD, anchor: 'start' as const }
+  const n = textCells(el.text, el.bold, el.size, el.font)
+  if (a === 'right') return { x: el.x + n - TEXT_PAD, anchor: 'end' as const }
+  return { x: el.x + n / 2 + inkShift(el.text, el.font, el.size), anchor: 'middle' as const }
+}
+
+/**
+ * 글자 한가운데의 세로 위치 (칸·네모칸 위쪽 끝에서 잰 거리, 칸 단위).
+ * fs: 실제 글자 크기(칸 단위), h: 칸이면 1, 네모칸이면 그 높이.
+ */
+export function textMidY(valign: TextVAlign | undefined, fs: number, h = 1) {
+  const pad = h > 1 ? 0.15 : 0.06
+  if (valign === 'top') return pad + fs / 2
+  if (valign === 'bottom') return h - pad - fs / 2 + 0.03
+  return h > 1 ? h / 2 + 0.04 * h : 0.52
 }
 
 export interface Box {
@@ -61,8 +132,11 @@ export interface Box {
 export function elBox(el: El): Box {
   if (el.type === 'box') return { x1: el.x, y1: el.y, x2: el.x + el.w, y2: el.y + el.h }
   if (el.type === 'bullet') return { x1: el.x, y1: el.y, x2: el.x + 1, y2: el.y + 1 }
+  if (el.type === 'icon') return { x1: el.x, y1: el.y, x2: el.x + el.size, y2: el.y + el.size }
+  if (el.type === 'mark') return { x1: el.x, y1: el.y, x2: el.x + el.w, y2: el.y + el.h }
   if (el.type === 'text') {
-    return { x1: el.x, y1: el.y, x2: el.x + TEXT_PAD + measureText(el.text, el.bold), y2: el.y + 1 }
+    const ink = textInk(el)
+    return { x1: el.x, y1: el.y, x2: el.align && el.align !== 'left' ? el.x + ink.n : ink.end, y2: el.y + 1 }
   }
   return {
     x1: Math.min(el.x1, el.x2),
@@ -90,8 +164,19 @@ function hitText(t: TextEl, p: Pt) {
   return p.x >= b.x1 && p.x <= b.x2 + 0.1 && p.y >= b.y1 && p.y < b.y2
 }
 
-/** 위에 그려진 것부터, 선택된 요소를 우선해서 찾는다 */
-export function hitTest(els: El[], p: Pt, preferIds: string[] = []): El | null {
+/**
+ * 위에 그려진 것부터, 선택된 요소를 우선해서 찾는다.
+ * 형광펜 칸은 글자를 쓰는 데 방해되지 않게 기본으로는 안 잡히고, withMarks일 때(지우개)만 맨 나중에 잡힌다.
+ */
+export function hitTest(els: El[], p: Pt, preferIds: string[] = [], withMarks = false): El | null {
+  const marks = els.filter((e) => e.type === 'mark')
+  if (marks.length) els = els.filter((e) => e.type !== 'mark')
+  const found = hitTestInner(els, p, preferIds)
+  if (found || !withMarks) return found
+  return marks.find((m) => m.type === 'mark' && p.x >= m.x && p.x <= m.x + m.w && p.y >= m.y && p.y <= m.y + m.h) ?? null
+}
+
+function hitTestInner(els: El[], p: Pt, preferIds: string[]): El | null {
   const test = (el: El) =>
     el.type === 'line'
       ? hitLine(el, p, 0.28)
@@ -99,7 +184,9 @@ export function hitTest(els: El[], p: Pt, preferIds: string[] = []): El | null {
         ? hitText(el, p)
         : el.type === 'bullet'
           ? Math.floor(p.x) === el.x && Math.floor(p.y) === el.y
-          : p.x >= el.x && p.x <= el.x + el.w && p.y >= el.y && p.y <= el.y + el.h
+          : el.type === 'icon'
+            ? p.x >= el.x && p.x <= el.x + el.size && p.y >= el.y && p.y <= el.y + el.size
+            : p.x >= el.x && p.x <= el.x + el.w && p.y >= el.y && p.y <= el.y + el.h
   for (let i = els.length - 1; i >= 0; i--) {
     if (preferIds.includes(els[i].id) && test(els[i])) return els[i]
   }
@@ -113,7 +200,7 @@ export function hitTest(els: El[], p: Pt, preferIds: string[] = []): El | null {
 export function findTextAt(els: El[], x: number, y: number): TextEl | null {
   for (let i = els.length - 1; i >= 0; i--) {
     const el = els[i]
-    if (el.type === 'text' && el.y === y && x >= el.x && x < el.x + textCells(el.text, el.bold)) return el
+    if (el.type === 'text' && el.y === y && x >= el.x && x < el.x + textCells(el.text, el.bold, el.size, el.font)) return el
   }
   return null
 }
