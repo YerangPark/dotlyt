@@ -116,9 +116,9 @@ export function boldCss(bold: boolean, cell: number, scale = 1, color = INK): Re
   return bold ? { WebkitTextStroke: `${BOLD_STROKE * cell * scale}px ${color}`, paintOrder: 'stroke' } : {}
 }
 
-/** 단색 선 아이콘 하나. 칸 가장자리에서 조금 띄워 그린다. */
+/** 단색 선 아이콘 하나. 칸을 꽉 채우지 않게 둘레를 넉넉히 띄워 그린다 (1칸이면 칸의 6할 남짓) */
 export function IconGlyph({ el }: { el: IconEl }) {
-  const pad = 0.08 * el.size
+  const pad = 0.14 + 0.04 * el.size
   const k = (el.size - pad * 2) / 24
   return (
     <g transform={`translate(${el.x + pad} ${el.y + pad}) scale(${k})`}>
@@ -127,7 +127,7 @@ export function IconGlyph({ el }: { el: IconEl }) {
         fill="none"
         stroke={el.color}
         // 가는 펜으로 그린 듯 얇게. 크게 넣을수록 선도 같이 커지니 더 얇게
-        strokeWidth={el.size === 1 ? 1.5 : el.size === 2 ? 1.25 : 1.1}
+        strokeWidth={el.size === 1 ? 1.8 : el.size === 2 ? 1.4 : 1.2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />

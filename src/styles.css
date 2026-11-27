@@ -3580,3 +3580,135 @@ h3 {
 .sym-popup .sel-palette button:hover {
   background: var(--hover);
 }
+
+/* ---------- 노트 양옆 넘기기 버튼: 세로로 길게, 올리면 가장자리 없이 은은하게 번지는 빛 ---------- */
+.turn-btn {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: min(62%, 520px);
+  margin: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity 0.2s, color 0.2s;
+}
+/* 호버 빛: 경계 없이 가운데가 진하고 바깥으로 사라지는 타원 */
+.turn-btn::before {
+  content: '';
+  position: absolute;
+  /* 빛이 버튼 밖으로 번져도 잘리지 않게 넉넉히 (좌우 40px, 위아래 60px 더) */
+  inset: -60px -40px;
+  /* 마우스 위치(--gx, --gy: 버튼 기준)에 가운데가 오는 둥근 빛. 가장자리 없이 사라진다 */
+  background: radial-gradient(
+    circle 60px at calc(var(--gx, 22px) + 40px) calc(var(--gy, 50%) + 60px),
+    rgba(25, 25, 25, 0.08),
+    rgba(25, 25, 25, 0.03) 50%,
+    rgba(25, 25, 25, 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.turn-btn svg {
+  position: relative;
+  transition: transform 0.2s ease;
+}
+.turn-btn:hover {
+  opacity: 1;
+  color: var(--ink);
+}
+.turn-btn:hover::before {
+  opacity: 1;
+}
+.turn-btn.prev:hover svg {
+  transform: translateX(-2px);
+}
+.turn-btn.next:hover svg {
+  transform: translateX(2px);
+}
+.turn-btn:active::before {
+  background: radial-gradient(
+    circle 60px at calc(var(--gx, 22px) + 40px) calc(var(--gy, 50%) + 60px),
+    rgba(25, 25, 25, 0.12),
+    rgba(25, 25, 25, 0.04) 55%,
+    rgba(25, 25, 25, 0) 100%
+  );
+}
+.turn-btn:focus-visible {
+  outline: none;
+}
+.turn-btn:focus-visible::before {
+  opacity: 1;
+}
+.turn-btn.add {
+  opacity: 0.6;
+}
+
+/* ---------- 모든 페이지: 모달 ---------- */
+.overview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(25, 25, 25, 0.28);
+  animation: fade-in 0.16s ease-out both;
+}
+.overview-backdrop .overview {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: min(1040px, 100%);
+  height: min(820px, 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.05), 0 20px 50px rgba(15, 15, 15, 0.22);
+  animation: pop-in 0.18s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.overview-backdrop .ov-head {
+  padding-top: 14px;
+}
+@media (max-width: 720px) {
+  .overview-backdrop {
+    padding: 10px;
+  }
+  .overview-backdrop .overview {
+    height: 100%;
+    border-radius: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview-backdrop,
+  .overview-backdrop .overview {
+    animation: none;
+  }
+}
+
+/* 인덱스 붙이기: 스티커 줄 맨 아래, 아직 붙이지 않은 회색 스티커에 + */
+.index-tab.add {
+  --c: #b9b4ab;
+  /* 진짜 스티커처럼 노트 표지 밖으로 나오게 (접착부 + 표지 판 + 바깥) */
+  min-width: 54px;
+  max-width: 54px;
+  justify-content: center;
+  padding-right: 4px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  opacity: 0.8;
+  transition: opacity 0.15s, translate 0.15s;
+}
+.index-tab.add:hover {
+  opacity: 1;
+  translate: 2px 0;
+}
+.index-tabs.narrow .index-tab.add .index-tab-name {
+  display: inline;
+}

@@ -4,6 +4,7 @@ import { clampGroup, clampInto, clampStart, type Placement } from './move'
 import {
   HIGHLIGHT_COLORS,
   INK_COLORS,
+  OLD_STICKER_COLORS,
   SIZES,
   type BoxEl,
   type BulletEl,
@@ -93,6 +94,8 @@ function load(): Persisted {
         // 페이지 밖으로 밀려나 안 보이던 것(예전 옮기기)은 가장자리 안쪽으로 되돌린다
         d.pages = d.pages.map((p) => ({
           ...p,
+          // 예전 쨍한 인덱스 색은 새 차분한 색으로
+          index: p.index && OLD_STICKER_COLORS[p.index.color.toLowerCase()] ? { ...p.index, color: OLD_STICKER_COLORS[p.index.color.toLowerCase()] } : p.index,
           elements: ((els: El[]) => (legacyMarks ? joinVerticalMarks(els) : els))(
             p.elements.filter((e) => !(e.type === 'box' && !e.text.trim()) && !(e.type === 'text' && e.text === '')).map((e) => clampStart(e, p)),
           ),

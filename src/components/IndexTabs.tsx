@@ -26,11 +26,12 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
   onOpenList: () => void
 }) {
   const pages = useStore((s) => s.pages)
+  const currentId = useStore((s) => s.currentPageId)
   const tabs = pages.filter((p) => p.index)
   const longPress = useRef<number | undefined>(undefined)
   const pressed = useRef<string | null>(null)
-
-  if (!tabs.length) return null
+  // 맨 아래 회색 + 스티커: 지금 펼친 페이지 중 아직 스티커가 없는 곳(지금 페이지 먼저)에 붙이기
+  const addFor = [currentId, ...shownIds].find((id) => id && shownIds.includes(id) && !pages.find((p) => p.id === id)?.index) ?? null
 
   return (
     <div className={'index-tabs' + (narrow ? ' narrow' : '')}>
@@ -42,7 +43,7 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
             key={p.id}
             className={'index-tab' + (current ? ' current' : '')}
             style={{ top: TOP + slot * STEP, ...flagStyle(tab.color), transform: `rotate(${tilt(p.id)}deg)` }}
-            title={tab.name}
+            title={tab.name || `${pages.findIndex((x) => x.id === p.id) + 1}쪽`}
             onPointerDown={(e) => {
               if (e.pointerType === 'mouse' && e.button !== 0) return
               pressed.current = p.id
@@ -74,6 +75,19 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
           </button>
         )
       })}
+      {addFor && (
+        <button
+          className="index-tab add"
+          style={{ top: TOP + tabs.length * STEP }}
+          onClick={() => onEdit(addFor)}
+          aria-label="이 페이지에 인덱스 붙이기"
+          title="이 페이지에 인덱스 붙이기"
+        >
+          <span className="index-tab-name" aria-hidden>
+            +
+          </span>
+        </button>
+      )}
     </div>
   )
 }
@@ -93,7 +107,7 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
         aria-label="인덱스 스티커"
         onSubmit={(e) => {
           e.preventDefault()
-          if (!name.trim()) return
+          // 이름 없이 색 스티커만 붙여도 된다
           setIndex(page.id, { name: name.trim(), color })
           onClose()
         }}
@@ -103,12 +117,12 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
         <p className="hint">{pageNo}쪽에 붙어요. 어느 페이지에서든 노트 오른쪽 가장자리에서 눌러 바로 이동해요.</p>
         <div className="index-preview">
           <span className="index-tab current preview" style={flagStyle(color)}>
-            <span className="index-tab-name">{name || '이름'}</span>
+            <span className="index-tab-name">{name}</span>
           </span>
         </div>
         <label className="field">
           <span>이름</span>
-          <input autoFocus value={name} maxLength={8} placeholder="예: SEP, 독서 목록" onChange={(e) => setName(e.target.value)} />
+          <input autoFocus value={name} maxLength={8} placeholder="비워 두면 색만 (예: SEP, 독서 목록)" onChange={(e) => setName(e.target.value)} />
         </label>
         <fieldset className="field">
           <legend>색</legend>
@@ -144,7 +158,7 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
           <button type="button" className="btn ghost" onClick={onClose}>
             취소
           </button>
-          <button type="submit" className="btn primary" disabled={!name.trim()}>
+          <button type="submit" className="btn primary">
             {page.index ? '저장' : '붙이기'}
           </button>
         </div>
@@ -175,7 +189,7 @@ export function IndexList({ onClose, onAdd }: { onClose: () => void; onAdd: () =
                 }}
               >
                 <span className="index-chip" style={{ background: p.index!.color }} />
-                <span className="index-list-name">{p.index!.name}</span>
+                <span className="index-list-name">{p.index!.name || <span className="muted">이름 없음</span>}</span>
                 <span className="muted">{no}쪽</span>
               </button>
             </li>
