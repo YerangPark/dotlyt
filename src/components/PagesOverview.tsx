@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { fontOf } from '../fonts'
-import { BOX_PAD, FONT_SIZE, boxFontSize, fontSizeOf, textAnchor, textMidY } from '../geometry'
+import { FONT_SIZE, fontSizeOf, textAnchor, textMidY } from '../geometry'
 import { spreadStart, useStore } from '../store'
 import { isLight, type Page } from '../types'
 import { DeletePageDialog } from './DeletePageDialog'
-import { BulletGlyph, IconGlyph, InkLine, boldProps } from './PageView'
+import { BoxText, BulletGlyph, IconGlyph, InkLine, MarkGlyph, boldProps } from './page/glyphs'
 
 /** 페이지 한 장을 작게 그린 미리보기 (읽기 전용) */
-export function PageThumb({ page }: { page: Page }) {
+export function PageThumb({ page, no }: { page: Page; no?: number }) {
   const uid = useId().replace(/:/g, '')
   const dots = 'tdots' + uid
   const pencil = 'tpencil' + uid
@@ -16,7 +16,7 @@ export function PageThumb({ page }: { page: Page }) {
     <svg className="thumb-svg" viewBox={`0 0 ${cols} ${rows}`} preserveAspectRatio="xMidYMid meet" aria-hidden>
       <defs>
         <pattern id={dots} x={-0.5} y={-0.5} width={1} height={1} patternUnits="userSpaceOnUse">
-          <circle cx={0.5} cy={0.5} r={0.09} className="dot" />
+          <circle cx={0.5} cy={0.5} r={0.055} className="dot" />
         </pattern>
         <filter id={pencil} x="-20%" y="-20%" width="140%" height="140%">
           <feTurbulence type="fractalNoise" baseFrequency="9" numOctaves="2" seed="3" result="grain" />
@@ -26,31 +26,17 @@ export function PageThumb({ page }: { page: Page }) {
       </defs>
       <rect width={cols} height={rows} className="paper" />
       <rect x={0.5} y={0.5} width={cols - 1} height={rows - 1} fill={`url(#${dots})`} />
+      {no !== undefined && (
+        <text x={cols / 2} y={rows - 0.42} fontSize={0.36} textAnchor="middle" dominantBaseline="central" className="page-no-mark">
+          {no}
+        </text>
+      )}
       {elements.map((el) => {
-        if (el.type === 'mark')
-          return <rect key={el.id} x={el.x} y={el.y} width={el.w} height={el.h} fill={el.color} className="hl-mark" />
+        if (el.type === 'mark') return <MarkGlyph key={el.id} el={el} />
         if (el.type === 'line') return <InkLine key={el.id} line={el} filterId={pencil} />
         if (el.type === 'bullet') return <BulletGlyph key={el.id} b={el} elements={elements} />
         if (el.type === 'icon') return <IconGlyph key={el.id} el={el} />
-        if (el.type === 'box') {
-          const f = fontOf(el.font)
-          const fs = boxFontSize(el) * f.scale
-          return (
-            <text
-              key={el.id}
-              x={el.align === 'center' ? el.x + el.w / 2 : el.align === 'right' ? el.x + el.w - BOX_PAD : el.x + BOX_PAD}
-              textAnchor={el.align === 'center' ? 'middle' : el.align === 'right' ? 'end' : 'start'}
-              y={el.y + textMidY(el.valign, boxFontSize(el) * fontOf(el.font).scale, el.h)}
-              dominantBaseline="central"
-              fontSize={fs}
-              fontFamily={f.family}
-              className="ink-text"
-              {...boldProps(el.bold, fs / FONT_SIZE)}
-            >
-              {el.text}
-            </text>
-          )
-        }
+        if (el.type === 'box') return <BoxText key={el.id} el={el} />
         const f = fontOf(el.font)
         const fs = fontSizeOf(el.size) * f.scale
         return (
@@ -63,7 +49,8 @@ export function PageThumb({ page }: { page: Page }) {
             fontSize={fs}
             fontFamily={f.family}
             className="ink-text"
-            {...boldProps(el.bold, fs / FONT_SIZE)}
+            {...boldProps(el.bold, fs / FONT_SIZE, el.color)}
+            style={el.color ? { fill: el.color } : undefined}
           >
             {el.text}
           </text>

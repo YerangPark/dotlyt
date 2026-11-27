@@ -91,12 +91,12 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
   return (
     <div className={'cover-screen' + (opening ? ' opening' : '') + (phase === 'closing' ? ' closing' : '') + (leaving ? ' leaving' : '')}>
       <header className="cover-head">
-        <div className="brand-mark" aria-label="dotlyt">
+        <div className="brand-mark" aria-label="Dotlyt">
           <svg viewBox="0 0 28 28" width="26" height="26" aria-hidden>
             <rect x="2" y="2" width="24" height="24" rx="7" fill="none" stroke="currentColor" strokeWidth="2" />
             {[8.5, 14, 19.5].map((x) => [8.5, 14, 19.5].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1.6} fill="currentColor" />))}
           </svg>
-          <span>dotlyt</span>
+          <span>Dotlyt</span>
         </div>
         <button className="btn cover-head-cta" onClick={open}>
           노트 펼치기
@@ -132,28 +132,6 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
         </section>
 
         <div className="cover-stage">
-          {/* 손글씨 주석과 손으로 그린 화살표 */}
-          <p className="cover-note" aria-hidden>
-            {new Date().getFullYear()}년의 내 노트
-          </p>
-          <svg className="cover-arrow" viewBox="0 0 120 90" aria-hidden>
-            <path d="M6 10c22-6 52-2 70 14 12 11 18 26 20 44" fill="none" stroke="#171717" strokeWidth="1.6" strokeLinecap="round" />
-            <path d="M86 58l10 12 9-14" fill="none" stroke="#171717" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {/* 장식 스티커: 손으로 붙인 듯 비뚤게 */}
-          <svg className="sticker s-star" viewBox="0 0 48 48" aria-hidden>
-            <path d="M24 4l5.8 12.2 13.2 1.6-9.7 9.2 2.5 13.2L24 33.8 12.2 40.2l2.5-13.2L5 17.8l13.2-1.6z" fill="#3b82f6" stroke="#171717" strokeWidth="2.4" strokeLinejoin="round" />
-            <circle cx="20" cy="22" r="1.8" fill="#171717" />
-            <circle cx="28" cy="22" r="1.8" fill="#171717" />
-            <path d="M20.5 27c2 1.8 5 1.8 7 0" fill="none" stroke="#171717" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <svg className="sticker s-heart" viewBox="0 0 48 48" aria-hidden>
-            <path d="M24 41S6 30.5 6 17.5A9.5 9.5 0 0 1 24 12a9.5 9.5 0 0 1 18 5.5C42 30.5 24 41 24 41z" fill="#ff66cf" stroke="#171717" strokeWidth="2.4" strokeLinejoin="round" />
-            <path d="M15 17c1-2.5 3.5-3.5 5.5-3" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" opacity=".8" />
-          </svg>
-          <svg className="sticker s-bolt" viewBox="0 0 48 48" aria-hidden>
-            <path d="M27 3L9 27h12l-4 18 22-27H26z" fill="#22c55e" stroke="#171717" strokeWidth="2.4" strokeLinejoin="round" />
-          </svg>
           <button className="cover-book" ref={bookBtn} onClick={open} aria-label="노트 펼치기">
             <Notebook3D
               cover={notebook.cover}
@@ -170,7 +148,7 @@ export function CoverScreen({ onOpen, closing = false }: { onOpen: () => void; c
       </main>
 
       <footer className="cover-band">
-        <span className="band-brand">dotlyt</span>
+        <span className="band-brand">Dotlyt</span>
         <span className="band-copy">점 위에 하루를 적는 노트</span>
       </footer>
     </div>

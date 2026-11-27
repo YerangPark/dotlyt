@@ -1,7 +1,7 @@
 /* 깍두기 도면체 (SIL OFL 1.1, public/fonts/kkakdugi/OFL.txt) · 교보 손글씨 2025: public/fonts/README.md */
 @font-face {
   font-family: 'Kkakdugi Drafting';
-  src: url('/fonts/kkakdugi/KkakdugiDrafting-Regular.ttf') format('truetype');
+  src: url('/fonts/kkakdugi/KkakdugiDrafting-Regular.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
@@ -61,34 +61,44 @@
 }
 
 :root {
-  /* Superr 룩: 크림 종이 바탕, 차콜 테두리, 마커 오렌지 하나만 포인트 색 */
-  --cream: #fdfbf9;
-  --charcoal: #171717;
-  --cocoa: #2b1a07;
-  --dew: #f7efe9;
+  /*
+   * 미니멀 모노: 흰 바탕, 굵은 외곽선 대신 아주 옅은 1px 선과 회색 면으로 구분,
+   * 주 버튼은 검정, 기능 표시(선택·커서·포커스)는 파랑 하나, 글꼴은 프리텐다드.
+   * 노트(표지·종이·스티커)는 '제품'이라 이 색과 따로 간다.
+   */
   --marker: #ff6f1e;
   --sienna: #ce500a;
-  --mist: #bebcbb;
-  --shadow-lg: rgba(0, 0, 0, 0.06) 0px 2px 20px 0px;
-  --shadow-subtle: rgba(0, 0, 0, 0.25) 0px 1px 2px 0px;
-  --radius-pill: 20px;
-  --radius-card: 12px;
-  --radius-input: 8px;
-  --font-display: 'Fraunces', 'Pretendard Variable', Pretendard, serif;
 
   --desk: var(--cream);
-  --desk-2: var(--dew);
+  /* 종이: 크림, 점: 작고 옅게 */
   --paper: #fffdfa;
-  --dot: #bfb6ab;
-  --ink: var(--charcoal);
-  --muted: #8a7d70;
-  --line: #e6dcd2;
-  --accent: var(--marker);
-  --accent-soft: rgba(255, 111, 30, 0.14);
+  /* 책등 쪽 그늘 (페이지와 넘기는 장이 같이 쓴다) */
+  --gutter-left: linear-gradient(90deg, rgba(0, 0, 0, 0) 84%, rgba(0, 0, 0, 0.025) 94%, rgba(0, 0, 0, 0.07) 100%);
+  --gutter-right: linear-gradient(270deg, rgba(0, 0, 0, 0) 84%, rgba(0, 0, 0, 0.02) 94%, rgba(0, 0, 0, 0.06) 100%);
+  --gutter-single: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0, rgba(0, 0, 0, 0.015) 5%, rgba(0, 0, 0, 0) 12%);
+  --dot: #c9c2b8;
   --panel: var(--cream);
   --cover: #1e2a44;
   --cover-ink: #f6f1e7;
   color-scheme: light;
+  --cream: #ffffff;
+  --charcoal: #191919;
+  --cocoa: #191919;
+  --dew: #f1efec;
+  --mist: #c9c5bf;
+  --line: #ece8e3;
+  --muted: #8a8580;
+  --ink: #191919;
+  --accent: #2383e2;
+  --accent-soft: rgba(35, 131, 226, 0.14);
+  --hover: #f5f4f2;
+  --danger: #d44c47;
+  --shadow-lg: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 4px 16px rgba(15, 15, 15, 0.08);
+  --shadow-subtle: none;
+  --radius-pill: 8px;
+  --radius-card: 10px;
+  --radius-input: 6px;
+  --font-display: 'Pretendard Variable', Pretendard, -apple-system, sans-serif;
 }
 
 * {
@@ -122,15 +132,19 @@ button {
   flex-direction: column;
   align-items: center;
   padding: 48px 16px;
+  max-width: 820px;
 }
 .brand {
   font-size: 34px;
-  letter-spacing: 0.02em;
   margin: 0;
+  line-height: 1.08;
+  letter-spacing: normal;
 }
 .setup-sub {
   color: var(--muted);
   margin: 6px 0 28px;
+  transform: rotate(-1.5deg);
+  transform-origin: left center;
 }
 
 .nb-form {
@@ -209,6 +223,9 @@ button {
   line-height: 1.3;
   word-break: keep-all;
   max-width: 78%;
+  /* 표지 가운데 (책등 접힘선과 오른쪽 고무줄 사이) */
+  align-self: center;
+  text-align: center;
   letter-spacing: 0.01em;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
 }
@@ -400,6 +417,7 @@ button {
   padding: 11px 22px;
   font-size: 15px;
   cursor: pointer;
+  box-shadow: var(--shadow-subtle);
 }
 .btn.primary {
   background: var(--ink);
@@ -408,6 +426,7 @@ button {
 .btn.ghost {
   background: transparent;
   border: 1px solid var(--line);
+  box-shadow: none;
 }
 
 /* ---------- 작업 화면 ---------- */
@@ -523,7 +542,10 @@ button {
   padding: 6px 16px 16px 0;
   background: var(--cover);
   border-radius: 3px 8px 8px 3px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06), 0 18px 40px rgba(60, 45, 20, 0.22);
+  box-shadow: 0 0 0 1px rgba(43, 26, 7, 0.08),
+    0 2px 3px rgba(43, 26, 7, 0.22),
+    0 10px 20px -6px rgba(43, 26, 7, 0.28),
+    0 34px 64px -20px rgba(43, 26, 7, 0.45);
 }
 .notebook.spread {
   padding: 6px 16px 16px;
@@ -540,7 +562,9 @@ button {
 .stack-side {
   top: 3px;
   bottom: 0;
-  width: 10px;
+  /* 남은 페이지만큼 (PageView가 --stack으로) */
+  width: var(--stack, 10px);
+  transition: width 0.45s ease, left 0.45s ease, right 0.45s ease;
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0) 12%),
     repeating-linear-gradient(90deg, #faf6ee 0 1px, #ddd3c0 1px 2px);
@@ -548,15 +572,16 @@ button {
 .stack-bottom {
   height: 10px;
   bottom: -10px;
+  transition: left 0.45s ease, right 0.45s ease;
   background: repeating-linear-gradient(180deg, #faf6ee 0 1px, #d9cfbb 1px 2px);
 }
 .page-wrap.left .stack-side {
-  left: -10px;
+  left: calc(-1 * var(--stack, 10px));
   border-radius: 5px 0 0 0;
   box-shadow: -1px 0 0 rgba(0, 0, 0, 0.15);
 }
 .page-wrap.left .stack-bottom {
-  left: -10px;
+  left: calc(-1 * var(--stack, 10px));
   right: 0;
   border-radius: 0 0 0 6px;
   clip-path: polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
@@ -564,13 +589,13 @@ button {
 }
 .page-wrap.right .stack-side,
 .page-wrap.single .stack-side {
-  right: -10px;
+  right: calc(-1 * var(--stack, 10px));
   border-radius: 0 5px 0 0;
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.15);
 }
 .page-wrap.right .stack-bottom,
 .page-wrap.single .stack-bottom {
-  right: -10px;
+  right: calc(-1 * var(--stack, 10px));
   left: 0;
   border-radius: 0 0 6px 0;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
@@ -582,14 +607,11 @@ button {
 /* 가운데 제본 쪽은 종이가 모여서 아래로만 살짝 */
 .page-wrap {
   z-index: 0;
+  position: relative;
 }
 /* 팝업(선택 막대, 기호 팝업)이 떠 있는 페이지는 반대쪽 페이지와 스티커보다 위로 */
-.page-wrap:has(.sel-bar, .sym-popup, .icon-picker) {
+.page-wrap:has(.sel-bar, .sym-popup, .icon-picker, .ctx-menu) {
   z-index: 3;
-}
-
-.page-wrap {
-  position: relative;
 }
 .page {
   position: relative;
@@ -604,19 +626,21 @@ button {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  box-shadow: inset 8px 0 10px -8px rgba(0, 0, 0, 0.18);
+  /* 한 장 보기: 왼쪽이 책등 */
+  background: var(--gutter-single);
 }
 .page-wrap.left .page {
   border-radius: 5px 1px 1px 5px;
 }
 .page-wrap.left .page::after {
-  box-shadow: inset -16px 0 18px -14px rgba(0, 0, 0, 0.28);
+  /* 바깥쪽은 빛을 받고, 책등 쪽으로 휘어 들어가며 어두워진다 */
+  background: var(--gutter-left);
 }
 .page-wrap.right .page {
   border-radius: 1px 5px 5px 1px;
 }
 .page-wrap.right .page::after {
-  box-shadow: inset 16px 0 18px -14px rgba(0, 0, 0, 0.28);
+  background: var(--gutter-right);
 }
 .page-wrap.left::after {
   content: '';
@@ -657,7 +681,6 @@ button {
   align-items: center;
   font-size: 10px;
   line-height: 1;
-  letter-spacing: 0.02em;
   cursor: pointer;
   pointer-events: auto;
   transform-origin: left center;
@@ -678,6 +701,7 @@ button {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  letter-spacing: 0;
 }
 /* 접착부와 색 부분 사이 경계선 */
 .index-tab::before {
@@ -812,10 +836,6 @@ button {
   opacity: 0.6;
   padding: 0 6px;
 }
-.sel-b {
-  font-family: Georgia, serif;
-  font-size: 15px;
-}
 
 /* ---------- 글자 스타일 패널 ---------- */
 .aa {
@@ -922,12 +942,6 @@ button {
 .font-name {
   font-size: 10.5px;
   color: var(--muted);
-}
-.style-note {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.4;
 }
 .sel-bar .sel-style .aa {
   font-size: 14px;
@@ -1083,61 +1097,6 @@ button {
   inset: 0;
   pointer-events: none;
 }
-.g-tick {
-  position: absolute;
-  background: var(--muted);
-  opacity: 0.45;
-}
-.g-tick.major {
-  opacity: 0.7;
-}
-.g-tick.v {
-  width: 1px;
-  height: 9px;
-  transform: translateX(-0.5px);
-}
-.g-tick.v.major {
-  height: 14px;
-}
-.g-tick.v.top {
-  bottom: calc(100% + 10px);
-}
-.g-tick.v.bottom {
-  top: calc(100% + 10px);
-}
-.g-tick.h {
-  height: 1px;
-  width: 9px;
-  transform: translateY(-0.5px);
-}
-.g-tick.h.major {
-  width: 14px;
-}
-.g-tick.h.left {
-  right: calc(100% + 10px);
-}
-.g-tick.h.right {
-  left: calc(100% + 10px);
-}
-.g-label {
-  position: absolute;
-  font-size: 10px;
-  color: var(--muted);
-  opacity: 0.7;
-  line-height: 1;
-}
-.g-label.top {
-  bottom: calc(100% + 26px);
-  transform: translateX(-50%);
-}
-.g-label.left {
-  right: calc(100% + 27px);
-  transform: translateY(-50%);
-}
-.g-label.right {
-  left: calc(100% + 27px);
-  transform: translateY(-50%);
-}
 .page-svg {
   display: block;
   touch-action: none;
@@ -1173,17 +1132,17 @@ button {
 }
 .guide-marks line {
   stroke: #8f8b84;
-  stroke-width: 0.06;
+  stroke-width: 0.03;
   stroke-linecap: round;
-  opacity: 0.55;
+  opacity: 0.4;
 }
 .guide-marks .major line {
-  stroke-width: 0.08;
-  opacity: 0.8;
+  stroke-width: 0.04;
+  opacity: 0.6;
 }
 .guide-marks text {
   fill: #8f8b84;
-  opacity: 0.85;
+  opacity: 0.6;
   font-family: inherit;
 }
 .hl-mark {
@@ -1254,7 +1213,7 @@ button {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(60, 45, 20, 0.08);
+  box-shadow: var(--shadow-lg);
 }
 .tool-group {
   display: grid;
@@ -1328,11 +1287,11 @@ button {
 .modal {
   background: var(--desk);
   border-radius: 18px;
-  padding: 24px;
   width: 100%;
   max-width: 800px;
   max-height: 100%;
   overflow: auto;
+  padding: 28px 32px;
 }
 .modal.small {
   max-width: 420px;
@@ -1359,6 +1318,7 @@ button {
 .btn:disabled {
   opacity: 0.4;
   cursor: default;
+  box-shadow: none;
 }
 .tool.bold-btn {
   font-weight: 700;
@@ -1389,6 +1349,7 @@ button {
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     gap: 2px;
     overflow-x: auto;
+  box-shadow: none;
   }
   .tool-group {
     display: flex;
@@ -1504,6 +1465,7 @@ button {
 }
 .ov-group.current {
   background: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 0 1.5px var(--charcoal);
 }
 .ov-card {
   position: relative;
@@ -1525,7 +1487,7 @@ button {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06), 0 8px 18px rgba(60, 45, 20, 0.18);
 }
 .ov-card.checked .ov-thumb {
-  box-shadow: 0 0 0 2px #b03a2e, 0 4px 12px rgba(60, 45, 20, 0.14);
+  box-shadow: 0 0 0 2px var(--marker), var(--shadow-lg);
 }
 .ov-card.lifted {
   opacity: 0.3;
@@ -1579,8 +1541,8 @@ button {
 .ov-check input {
   width: 16px;
   height: 16px;
-  accent-color: #b03a2e;
   cursor: pointer;
+  accent-color: var(--accent);
 }
 .ov-empty {
   color: var(--muted);
@@ -1612,13 +1574,7 @@ button {
 }
 
 
-/* =====================================================================
-   Superr 룩 덮어쓰기
-   - 바탕은 크림 종이, 면은 채우지 않고 1.5px 차콜 테두리로 구분
-   - 버튼은 채우지 않은 알약 모양(20px), 카드·패널은 12px, 입력칸은 8px
-   - 포인트 색은 마커 오렌지 하나 (선택, 커서, 손글씨 같은 강조)
-   - 그림자는 아주 옅게
-   ===================================================================== */
+/* ---------- 공통 요소 (덮어쓰는 값: 같은 선택자가 미디어 쿼리 뒤에 와야 이기는 것들) ---------- */
 body {
   color: var(--charcoal);
 }
@@ -1638,7 +1594,6 @@ h3 {
   background: var(--cream);
   color: var(--charcoal);
   border: 1.5px solid var(--charcoal);
-  box-shadow: var(--shadow-subtle);
 }
 .btn.primary {
   background: var(--cream);
@@ -1646,7 +1601,6 @@ h3 {
 }
 .btn.ghost {
   border: 1.5px solid var(--line);
-  box-shadow: none;
 }
 .btn.ghost:hover {
   border-color: var(--charcoal);
@@ -1657,9 +1611,6 @@ h3 {
   background: var(--cream);
   color: var(--sienna);
   border-color: var(--sienna);
-}
-.btn:disabled {
-  box-shadow: none;
 }
 
 /* 입력칸 */
@@ -1678,14 +1629,10 @@ h3 {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 64px;
-  line-height: 1.08;
-  letter-spacing: normal;
   color: var(--cocoa);
-  text-transform: lowercase;
 }
 .setup {
   align-items: stretch;
-  max-width: 820px;
   margin: 0 auto;
   padding: 56px 24px;
 }
@@ -1693,8 +1640,6 @@ h3 {
   color: var(--marker);
   font-size: 20px;
   margin: 8px 0 36px;
-  transform: rotate(-1.5deg);
-  transform-origin: left center;
   align-self: flex-start;
 }
 .size-card {
@@ -1753,7 +1698,6 @@ h3 {
   background: var(--cream);
   border: 1.5px solid var(--charcoal);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-lg);
 }
 .tool-group + .tool-group {
   border-color: var(--line);
@@ -1765,7 +1709,7 @@ h3 {
 .tool:hover:not(:disabled) {
   background: var(--dew);
 }
-/* 켜진 도구: 채우지 않고 차콜 테두리 + 옅은 면 */
+/* 켜진 도구: 옅은 회색 면 */
 .tool.on {
   background: var(--dew);
   color: var(--charcoal);
@@ -1779,11 +1723,10 @@ h3 {
   .toolbar {
     border-width: 1.5px 0 0;
     border-radius: 0;
-    box-shadow: none;
   }
 }
 
-/* ---------- 팝업·패널: 크림 면, 차콜 테두리, 옅은 그림자 ---------- */
+/* ---------- 팝업·패널: 흰 면, 옅은 선, 옅은 그림자 ---------- */
 .sym-popup,
 .style-panel,
 .icon-picker,
@@ -1859,9 +1802,6 @@ h3 {
 .modal-backdrop {
   background: rgba(43, 26, 7, 0.22);
 }
-.modal {
-  padding: 28px 32px;
-}
 .modal h2 {
   font-size: 24px;
 }
@@ -1881,13 +1821,6 @@ h3 {
 }
 .ov-group.current {
   background: var(--dew);
-  box-shadow: inset 0 0 0 1.5px var(--charcoal);
-}
-.ov-card.checked .ov-thumb {
-  box-shadow: 0 0 0 2px var(--marker), var(--shadow-lg);
-}
-.ov-check input {
-  accent-color: var(--marker);
 }
 .ov-thumb {
   box-shadow: 0 0 0 1px var(--line), var(--shadow-lg);
@@ -1911,67 +1844,66 @@ h3 {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  padding: 0;
   background: var(--cream);
+  overflow-x: hidden;
 }
 .brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 26px;
-  color: var(--cocoa);
-}
-.cover-body {
-  flex: 1;
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 48px;
-  padding: 24px 32px 48px;
+  line-height: 1;
+  color: var(--charcoal);
 }
 .cover-text {
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  max-width: 460px;
+  max-width: 520px;
 }
 .cover-caption {
+  margin: 0 0 14px;
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 500;
   color: var(--marker);
-  font-size: 20px;
-  margin: 0 0 10px;
-  transform: rotate(-2deg);
-  transform-origin: left center;
+  transform: rotate(-3deg);
+  transform-origin: left bottom;
 }
 .cover-title {
   font-size: 56px;
-  line-height: 1.08;
-  margin: 0 0 16px;
+  margin: 0 0 22px;
+  line-height: 1.06;
   color: var(--cocoa);
   word-break: keep-all;
-}
-.cover-meta {
-  color: var(--muted);
-  font-size: 15px;
-  margin: 0 0 28px;
+  letter-spacing: -0.02em;
 }
 .cover-open {
-  font-size: 17px;
-  padding: 12px 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 30px;
+  font-size: 18px;
+  font-weight: 600;
 }
 .cover-hint {
+  margin: 0 0 0 6px;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--cocoa);
-  font-size: 14px;
-  margin: 10px 0 0 4px;
-  opacity: 0.7;
+  opacity: 1;
 }
 .cover-book {
   border: 0;
   background: transparent;
-  padding: 24px;
   cursor: pointer;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  padding: 28px;
 }
 .cover-book:focus-visible {
   outline: 2px solid var(--marker);
@@ -1989,7 +1921,7 @@ h3 {
 .book-face.firstpage,
 .book-face.leaf {
   inset: 3px 4px 3px 2px;
-  background: radial-gradient(circle, #bfb6ab 0.9px, transparent 1.2px) 0 0 / 9px 9px, var(--paper);
+  background: radial-gradient(circle, var(--dot) 0.6px, transparent 0.85px) 0 0 / 9px 9px, var(--paper);
   border-radius: 2px 6px 6px 2px;
 }
 .book-face.firstpage {
@@ -2055,9 +1987,9 @@ h3 {
 }
 .cover-screen.opening .cover-text,
 .cover-screen.opening .brand-mark {
-  opacity: 0;
   transform: translateX(-12px);
   transition: opacity 0.35s, transform 0.35s;
+  opacity: 0;
 }
 .cover-screen.opening.leaving {
   opacity: 0;
@@ -2079,18 +2011,15 @@ h3 {
   }
 }
 @media (max-width: 720px) {
-  .cover-body {
-    flex-direction: column-reverse;
-    justify-content: center;
-    gap: 8px;
-    padding: 8px 8px 24px;
-  }
   .cover-title {
     font-size: 40px;
+  order: 2;
+  margin-bottom: 4px;
   }
   .cover-text {
     align-items: flex-start;
     width: 100%;
+  display: contents;
   }
 }
 
@@ -2107,9 +2036,9 @@ h3 {
 }
 .nb-chip.home:hover .nb-chip-name {
   text-decoration: underline;
-  text-decoration-color: var(--marker);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
+  text-decoration-color: var(--mist);
 }
 .nb-chip.home:hover .home-arrow {
   color: var(--marker);
@@ -2123,13 +2052,6 @@ h3 {
 /* ---------- 노트를 바탕에서 띄우기 ----------
    색은 그대로 두고, 노트 밑에 바닥에 닿은 그림자 + 넓게 퍼지는 그림자를 겹쳐
    책상 위에 놓인 책처럼 보이게 한다 */
-.notebook {
-  box-shadow:
-    0 0 0 1px rgba(43, 26, 7, 0.08),
-    0 2px 3px rgba(43, 26, 7, 0.22),
-    0 10px 20px -6px rgba(43, 26, 7, 0.28),
-    0 34px 64px -20px rgba(43, 26, 7, 0.45);
-}
 .ov-thumb {
   box-shadow:
     0 0 0 1px rgba(43, 26, 7, 0.1),
@@ -2147,7 +2069,7 @@ h3 {
 
 
 /* ---------- 인덱스 스티커: 컬러웨이에 맞춘 납작한 스티커 ----------
-   스티커 일러스트처럼 그림자 없이 1.5px 차콜 테두리, 색은 꽉 채우고,
+   스티커처럼 그림자 없이 옅은 테두리, 색은 꽉 채우고,
    종이에 붙은 접착부는 같은 색이 비치는 반투명 필름 */
 .index-tab {
   height: 22px;
@@ -2156,7 +2078,6 @@ h3 {
   border-radius: 0 7px 7px 0;
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0;
   padding: 0 7px 0 calc(var(--glue) + 5px);
   background: linear-gradient(90deg, color-mix(in srgb, var(--c) 32%, transparent) 0 var(--glue), var(--c) var(--glue));
   box-shadow: none;
@@ -2187,7 +2108,7 @@ h3 {
   width: 0;
   background: none;
 }
-/* 지금 페이지 스티커: 끝에 작은 오렌지 점 대신 조금 더 튀어나온다 */
+/* 지금 페이지 스티커: 조금 더 튀어나온다 */
 .index-tab.current .index-tab-name {
   text-decoration: underline;
   text-decoration-thickness: 1.5px;
@@ -2212,17 +2133,18 @@ h3 {
 }
 
 
-/* ---------- 표지 펼치기·닫기: 크림 바탕 위에서 종이가 또렷하게 ----------
+/* ---------- 표지 펼치기·닫기: 밝은 바탕 위에서 종이가 또렷하게 ----------
    종이를 조금 안쪽으로 들여 뒤표지 판 테두리가 둘레에 보이게 하고,
    펼친 책 밑에 그림자를 깔고, 속지마다 테두리와 책등 쪽 음영을 넣는다 */
 .book-face.firstpage,
 .book-face.leaf {
   inset: 6px 7px 6px 3px;
   background:
-    linear-gradient(90deg, rgba(43, 26, 7, 0.1), rgba(43, 26, 7, 0) 14%),
-    radial-gradient(circle, #b3a798 0.9px, transparent 1.2px) 0 0 / 9px 9px,
+    linear-gradient(90deg, rgba(43, 26, 7, 0.05), rgba(43, 26, 7, 0) 12%),
+    /* 실제 페이지(편집 화면)처럼 작고 옅은 점 */
+    radial-gradient(circle, var(--dot) 0.6px, transparent 0.85px) 0 0 / 9px 9px,
     var(--paper);
-  box-shadow: inset 0 0 0 1px rgba(43, 26, 7, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(43, 26, 7, 0.08);
 }
 .book-stage .book.opening .book-face.board,
 .book-stage .book.closing .book-face.board {
@@ -2328,34 +2250,16 @@ h3 {
 
 
 /* =====================================================================
-   메인 화면(표지) 다시 디자인 — Superr 히어로 구성
-   상단: 로고(왼쪽) · 알약 버튼(오른쪽)
-   히어로: 왼쪽 글(손글씨 캡션 → 큰 제목 → 본문 → 버튼 → 안내), 오른쪽 비스듬한 노트 + 스티커
-   하단: 오렌지 브랜드 띠
+   메인 화면(표지)
+   상단: 로고(왼쪽) · 노트 펼치기 버튼(오른쪽)
+   히어로: 왼쪽 글(인사 → 큰 제목 → 본문 → 버튼 → 안내), 오른쪽 노트
+   하단: 브랜드 띠
    ===================================================================== */
-.cover-screen {
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  background: var(--cream);
-  overflow-x: hidden;
-}
 .cover-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 20px 32px;
-}
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 26px;
-  line-height: 1;
-  color: var(--charcoal);
 }
 .cover-head-cta {
   padding: 9px 22px;
@@ -2373,29 +2277,12 @@ h3 {
   padding: 8px 48px 56px;
 }
 .cover-text {
-  display: flex;
-  flex-direction: column;
   align-items: flex-start;
-  max-width: 520px;
-}
-.cover-caption {
-  margin: 0 0 14px;
-  font-size: 24px;
-  line-height: 1.3;
-  font-weight: 500;
-  color: var(--marker);
-  transform: rotate(-3deg);
-  transform-origin: left bottom;
 }
 .cover-title {
-  margin: 0 0 22px;
-  font-family: 'Fraunces', 'Pretendard Variable', Pretendard, sans-serif;
+  font-family: 'Pretendard Variable', Pretendard, sans-serif;
   font-size: clamp(56px, 7.2vw, 96px);
-  line-height: 1.06;
   font-weight: 700;
-  letter-spacing: normal;
-  color: var(--cocoa);
-  word-break: keep-all;
 }
 .cover-body-copy {
   margin: 0 0 32px;
@@ -2405,7 +2292,7 @@ h3 {
   color: var(--cocoa);
   word-break: keep-all;
 }
-/* 마커 강조: 오렌지 글자 + 손으로 그은 듯한 밑줄 */
+/* 강조: 굵은 글자 + 밑줄 */
 .marker {
   color: var(--marker);
   font-weight: 600;
@@ -2414,6 +2301,10 @@ h3 {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M2 6c18-3 38-4 58-2.5S90 6 98 3.5' fill='none' stroke='%23ff6f1e' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E")
     left 100% / 100% 0.42em no-repeat;
   padding-bottom: 0.12em;
+  text-decoration: underline;
+  text-decoration-color: var(--mist);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
 }
 .cover-actions {
   display: flex;
@@ -2421,26 +2312,11 @@ h3 {
   align-items: flex-start;
   gap: 10px;
 }
-.cover-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 30px;
-  font-size: 18px;
-  font-weight: 600;
-}
 .cover-open svg {
   transition: transform 0.2s;
 }
 .cover-open:hover svg {
   transform: translateX(3px);
-}
-.cover-hint {
-  margin: 0 0 0 6px;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--cocoa);
-  opacity: 0.65;
 }
 
 /* 오른쪽: 노트와 스티커, 손글씨 주석 */
@@ -2450,53 +2326,6 @@ h3 {
   justify-content: center;
   align-items: center;
   min-height: 0;
-}
-.cover-book {
-  position: relative;
-  z-index: 1;
-  padding: 28px;
-}
-.cover-note {
-  position: absolute;
-  z-index: 2;
-  top: 4%;
-  left: 2%;
-  margin: 0;
-  font-size: 20px;
-  color: var(--marker);
-  transform: rotate(-6deg);
-  pointer-events: none;
-}
-.cover-arrow {
-  position: absolute;
-  z-index: 2;
-  top: 9%;
-  left: 7%;
-  width: 96px;
-  pointer-events: none;
-}
-.sticker {
-  position: absolute;
-  z-index: 2;
-  pointer-events: none;
-}
-.s-star {
-  width: 64px;
-  top: 6%;
-  right: 8%;
-  transform: rotate(12deg);
-}
-.s-heart {
-  width: 56px;
-  bottom: 12%;
-  right: 4%;
-  transform: rotate(-9deg);
-}
-.s-bolt {
-  width: 50px;
-  bottom: 18%;
-  left: 6%;
-  transform: rotate(-14deg);
 }
 
 /* 하단 브랜드 띠 */
@@ -2521,16 +2350,10 @@ h3 {
 }
 
 /* 펼치기·닫기 때 주변 장식은 잠시 비켜난다 */
-.cover-screen.opening .cover-note,
-.cover-screen.opening .cover-arrow,
-.cover-screen.opening .sticker,
 .cover-screen.opening .cover-head-cta {
   opacity: 0;
   transition: opacity 0.25s;
 }
-.cover-screen.closing .cover-note,
-.cover-screen.closing .cover-arrow,
-.cover-screen.closing .sticker,
 .cover-screen.closing .cover-head-cta {
   animation: fade-in 0.35s 1.1s both;
 }
@@ -2548,7 +2371,6 @@ h3 {
 }
 .cover-screen.opening .cover-text,
 .cover-screen.opening .brand-mark {
-  opacity: 0;
   transform: translateX(-12px);
   transition: opacity 0.35s, transform 0.35s;
 }
@@ -2572,18 +2394,13 @@ h3 {
     gap: 0;
     padding: 4px 20px 32px;
   }
-  .cover-text {
-    display: contents;
-  }
   .cover-caption {
     order: 1;
     font-size: 20px;
     margin-bottom: 8px;
   }
   .cover-title {
-    order: 2;
     font-size: 48px;
-    margin-bottom: 4px;
   }
   .cover-stage {
     order: 3;
@@ -2596,21 +2413,6 @@ h3 {
   }
   .cover-actions {
     order: 5;
-  }
-  .cover-note,
-  .cover-arrow {
-    display: none;
-  }
-  .s-star {
-    width: 46px;
-    top: 4%;
-    right: 6%;
-  }
-  .s-heart {
-    width: 40px;
-  }
-  .s-bolt {
-    width: 36px;
   }
   .cover-band {
     padding: 20px 24px 24px;
@@ -2637,32 +2439,7 @@ h3 {
   }
 }
 
-/* =====================================================================
-   스타일 B: 미니멀 모노 (Superr 덮어쓰기)
-   - 흰 바탕, 굵은 외곽선 대신 아주 옅은 1px 선
-   - 선택·켜짐은 회색 면, 주 버튼은 검정, 기능 표시(커서·선택)는 차분한 파랑
-   - 오렌지 장식은 걷어내고 글꼴은 프리텐다드 하나로
-   ===================================================================== */
-:root {
-  --cream: #ffffff;
-  --charcoal: #191919;
-  --cocoa: #191919;
-  --dew: #f1efec;
-  --mist: #c9c5bf;
-  --line: #ece8e3;
-  --muted: #8a8580;
-  --ink: #191919;
-  --accent: #2383e2;
-  --accent-soft: rgba(35, 131, 226, 0.14);
-  --hover: #f5f4f2;
-  --danger: #d44c47;
-  --shadow-lg: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 4px 16px rgba(15, 15, 15, 0.08);
-  --shadow-subtle: none;
-  --radius-pill: 8px;
-  --radius-card: 10px;
-  --radius-input: 6px;
-  --font-display: 'Pretendard Variable', Pretendard, -apple-system, sans-serif;
-}
+/* ---------- 뒤에 와야 이기는 값들 (앞의 미디어 쿼리·같은 요소의 다른 클래스보다 우선) ---------- */
 body {
   background: #ffffff;
 }
@@ -2771,9 +2548,6 @@ h3 {
 .save,
 .save.saved {
   color: var(--muted);
-}
-.nb-chip.home:hover .nb-chip-name {
-  text-decoration-color: var(--mist);
 }
 .nb-chip.home:hover .home-arrow {
   color: var(--charcoal);
@@ -2891,9 +2665,6 @@ h3 {
 .ov-card.checked .ov-thumb {
   box-shadow: 0 0 0 2px var(--accent), var(--shadow-lg);
 }
-.ov-check input {
-  accent-color: var(--accent);
-}
 .ov-card.drop-before::before,
 .ov-card.drop-after::after {
   background: var(--accent);
@@ -2942,7 +2713,6 @@ h3 {
   font-family: var(--font-display);
   color: var(--charcoal);
   font-weight: 700;
-  letter-spacing: -0.02em;
 }
 .cover-body-copy {
   color: #55524e;
@@ -2952,10 +2722,6 @@ h3 {
   color: var(--charcoal);
   font-weight: 600;
   background: none;
-  text-decoration: underline;
-  text-decoration-color: var(--mist);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
 }
 .cover-open {
   border-radius: 8px;
@@ -2967,13 +2733,7 @@ h3 {
 }
 .cover-hint {
   color: var(--muted);
-  opacity: 1;
   font-size: 14px;
-}
-.cover-note,
-.cover-arrow,
-.sticker {
-  display: none;
 }
 .cover-band {
   background: var(--hover);
@@ -3058,4 +2818,746 @@ h3 {
   background: var(--hover, #f5f4f2);
   font-style: normal;
   font-size: 9.5px;
+}
+
+/* ---------- 툴팁: 도구에 마우스를 올리면 이름·설명·단축키 ---------- */
+.tooltip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  --tip-from: translate(4px, -50%);
+  transform: translate(0, -50%);
+  animation: tip-in 0.16s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.tooltip.left {
+  --tip-from: translate(4px, -50%);
+  transform: translate(0, -50%);
+}
+.tooltip.right {
+  --tip-from: translate(-4px, -50%);
+  transform: translate(0, -50%);
+}
+.tooltip.bottom {
+  --tip-from: translate(-50%, -4px);
+  transform: translate(-50%, 0);
+}
+.tooltip.top {
+  --tip-from: translate(-50%, 4px);
+  transform: translate(-50%, 0);
+}
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: var(--tip-from);
+  }
+}
+.tooltip-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #191919;
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(15, 15, 15, 0.18);
+}
+.tooltip-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tooltip-name kbd {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  font: 500 11px/1.4 inherit;
+  font-family: inherit;
+}
+.tooltip-desc {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation-duration: 0.01s;
+  }
+}
+
+/* ---------- 단축키 목록 ---------- */
+.modal.shortcut-help {
+  width: min(620px, calc(100vw - 24px));
+}
+.shortcut-note {
+  margin: -4px 0 12px;
+  font-size: 12.5px;
+}
+.shortcut-cols {
+  columns: 2 240px;
+  column-gap: 28px;
+}
+.shortcut-cols section {
+  break-inside: avoid;
+  margin-bottom: 14px;
+}
+.shortcut-cols h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.shortcut-cols dl {
+  margin: 0;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13.5px;
+}
+.shortcut-row dt {
+  margin: 0;
+}
+.shortcut-row dd {
+  margin: 0;
+}
+.shortcut-row kbd,
+.sym-opt kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--hover);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---------- 찾기 ---------- */
+.find-bar {
+  position: fixed;
+  z-index: 30;
+  top: 58px;
+  /* 오른쪽 도구 모음을 가리지 않게 그 왼쪽에 */
+  right: 92px;
+  width: min(340px, calc(100vw - 24px));
+  background: var(--panel, #fff);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: find-in 0.16s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@media (max-width: 720px) {
+  .find-bar {
+    right: 12px;
+  }
+}
+@keyframes find-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  color: var(--muted);
+}
+.find-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 6px 0;
+}
+.find-count {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.find-count kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.find-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+.find-list button {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.find-list button:hover {
+  background: var(--hover);
+}
+.find-list button.on {
+  background: var(--accent-soft);
+}
+.find-page {
+  flex: 0 0 auto;
+  min-width: 30px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.find-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-text mark {
+  background: #ffe066;
+  color: inherit;
+  border-radius: 2px;
+}
+.find-tag {
+  margin-right: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--hover);
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* ---------- 템플릿 ---------- */
+.modal.templates {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.tpl-save {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tpl-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.tpl-save .seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-right: auto;
+  background: var(--hover);
+  border-radius: 8px;
+}
+.tpl-save .seg button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tpl-save .seg button.on {
+  background: var(--panel, #fff);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.tpl-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+.tpl-list-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 14px 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.tpl-empty {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tpl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+.tpl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.tpl-thumbs {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  height: 150px;
+  padding: 8px;
+  background: var(--hover);
+  border-radius: 6px;
+}
+.tpl-thumb {
+  height: 100%;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.tpl-thumb .thumb-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tpl-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+}
+.tpl-meta strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-meta .muted {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+}
+.tpl-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tpl-actions .btn {
+  padding: 5px 8px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.tpl-actions .icon-btn {
+  margin-left: auto;
+}
+.tpl-ask {
+  font-size: 12.5px;
+  margin-right: auto;
+}
+
+/* 네모칸 입력: 여러 줄(Shift+Enter), 자동 줄바꿈 없이 그려지는 글자와 똑같이 */
+.ink-input.box-input {
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  display: block;
+}
+
+/* ---------- 네모칸 크기 바꾸기 손잡이 ---------- */
+.box-handle {
+  pointer-events: all;
+}
+.box-handle.nw,
+.box-handle.se {
+  cursor: nwse-resize;
+}
+.box-handle.ne,
+.box-handle.sw {
+  cursor: nesw-resize;
+}
+.box-handle-dot {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 0.05;
+}
+
+/* ---------- 페이지 넘기기: 책장 한 장이 책등을 축으로 넘어간다 ---------- */
+.page-turn {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  perspective: 2600px;
+}
+.turn-under,
+.turn-leaf {
+  position: absolute;
+}
+.turn-under {
+  background: var(--paper);
+  animation: turn-under 0.62s linear forwards;
+}
+/* 넘어가는 장이 반쯤(세워질 때) 지나면 아래에 있던 지난 페이지는 가려진다 */
+@keyframes turn-under {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.turn-leaf {
+  transform-style: preserve-3d;
+  animation: 0.62s cubic-bezier(0.45, 0.05, 0.3, 1) forwards;
+}
+.turn-leaf.to-left {
+  transform-origin: left center;
+  animation-name: leaf-to-left;
+}
+.turn-leaf.to-right {
+  transform-origin: right center;
+  animation-name: leaf-to-right;
+}
+@keyframes leaf-to-left {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-180deg);
+  }
+}
+@keyframes leaf-to-right {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+.turn-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.turn-face.back {
+  transform: rotateY(180deg);
+}
+.turn-face .thumb-svg,
+.turn-under .thumb-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 넘어가는 동안 종이가 휘며 생기는 그늘 */
+.turn-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.04) 35%, rgba(255, 255, 255, 0.06) 70%, rgba(0, 0, 0, 0.08));
+  opacity: 0;
+  animation: leaf-shade 0.62s ease-in-out forwards;
+}
+.to-right .turn-face::after {
+  background: linear-gradient(270deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.04) 35%, rgba(255, 255, 255, 0.06) 70%, rgba(0, 0, 0, 0.08));
+}
+@keyframes leaf-shade {
+  50% {
+    opacity: 1;
+  }
+}
+/* 한 장씩 보기: 지난 장이 왼쪽으로 넘어가 사라지거나, 새 장이 왼쪽에서 넘어온다 */
+.turn-leaf.single {
+  transform-origin: left center;
+  animation-duration: 0.45s;
+}
+.turn-leaf.single.out {
+  animation-name: leaf-out;
+}
+.turn-leaf.single.in {
+  animation-name: leaf-in;
+}
+@keyframes leaf-out {
+  to {
+    transform: rotateY(-95deg);
+    opacity: 0.2;
+  }
+}
+@keyframes leaf-in {
+  from {
+    transform: rotateY(-95deg);
+    opacity: 0.2;
+  }
+}
+.turn-leaf.single.in ~ .turn-under,
+.page-turn:has(.single.in) .turn-under {
+  animation-duration: 0.45s;
+  animation-name: turn-under-end;
+}
+@keyframes turn-under-end {
+  0%,
+  99% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.turn-blank {
+  width: 100%;
+  height: 100%;
+  background: var(--paper);
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-turn {
+    display: none;
+  }
+}
+
+/* 쪽번호: 종이 아래 가운데, 옅게 */
+.page-no-mark {
+  fill: #a3a19c;
+  font-family: 'Pretendard Variable', Pretendard, sans-serif;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+/* 넘기는 장·아래 장에도 페이지와 같은 휜 종이 그늘 (넘기는 동안 그늘이 사라졌다 생기지 않게) */
+.turn-under.pg-left::before,
+.turn-under.pg-right::before,
+.turn-under.pg-single::before,
+.turn-face.pg-left::before,
+.turn-face.pg-right::before,
+.turn-face.pg-single::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.pg-left::before {
+  background: var(--gutter-left);
+}
+.pg-right::before {
+  background: var(--gutter-right);
+}
+.pg-single::before {
+  background: var(--gutter-single);
+}
+
+/* 형광펜 점: 가운데 잉크가 고인 듯 살짝 진하게 (같은 색을 옅게 겹친다) */
+.hl-pool {
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+}
+.hl-dab.preview {
+  opacity: 0.8;
+}
+
+/* ---------- 고른 것 막대: 컬러점과 색 고르기 ---------- */
+.sel-color-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.sel-bar button.sel-color {
+  padding: 6px 7px;
+}
+.sel-color-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.sel-color-dot.mixed {
+  background: conic-gradient(#2b2a28 0 25%, #2f5d9e 0 50%, #c2412d 0 75%, #2e7d5b 0);
+}
+.sel-palette {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  /* 고른 것 막대와 같은 모양: 흰 면, 옅은 선 */
+  background: var(--panel, #fff);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: tip-in 0.14s ease-out both;
+  --tip-from: translate(-50%, 4px);
+}
+.sel-palette.below {
+  bottom: auto;
+  top: calc(100% + 8px);
+  --tip-from: translate(-50%, -4px);
+}
+.sel-bar .sel-palette button {
+  padding: 5px;
+  border-radius: 6px;
+}
+.sel-bar .sel-palette button.on {
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ---------- 오른쪽 클릭 메뉴 ---------- */
+.ctx-menu {
+  position: absolute;
+  z-index: 25;
+  min-width: 170px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel, #fff);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  animation: find-in 0.12s ease-out both;
+}
+.ctx-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.ctx-menu button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.ctx-menu button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.ctx-menu button.danger {
+  color: var(--danger, #d44c47);
+}
+.ctx-menu kbd {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+/* ---------- 팝업이 뜰 때: 살짝 떠오르며 나타난다 (위치용 transform과 겹치지 않게 translate·scale 따로) ---------- */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.97;
+  }
+}
+@keyframes pop-in-down {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+    scale: 0.97;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.sel-bar,
+.sym-popup,
+.icon-picker,
+.style-panel,
+.modal {
+  animation: pop-in 0.16s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+/* 아래쪽에 뜨는 것은 위에서 내려오듯 */
+.sel-bar.below,
+.sym-popup.below {
+  animation-name: pop-in-down;
+}
+.sel-bar {
+  transform-origin: 50% 100%;
+}
+.sel-bar.below {
+  transform-origin: 50% 0;
+}
+.modal-backdrop {
+  animation: fade-in 0.16s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sel-bar,
+  .sym-popup,
+  .icon-picker,
+  .style-panel,
+  .modal,
+  .modal-backdrop {
+    animation: none;
+  }
+}
+
+/* 닫힐 때: 살짝 가라앉으며 사라진다 (그동안은 누를 수 없게) */
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.97;
+  }
+}
+@keyframes pop-out-up {
+  to {
+    opacity: 0;
+    translate: 0 -4px;
+    scale: 0.97;
+  }
+}
+.sel-bar.leaving,
+.ctx-menu.leaving {
+  animation: pop-out 0.13s ease-in both;
+  pointer-events: none;
+}
+.sel-bar.below.leaving {
+  animation-name: pop-out-up;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sel-bar.leaving,
+  .ctx-menu.leaving {
+    animation: none;
+    opacity: 0;
+  }
 }
