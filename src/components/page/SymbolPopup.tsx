@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { iconOf } from '../../icons'
 import { useStore } from '../../store'
-import type { BulletEl, BulletState, El } from '../../types'
+import { INK_COLORS, type BulletEl, type BulletState, type El } from '../../types'
 import { Glyph } from './glyphs'
+import { ColorDot } from './SelectionBar'
 
 /**
  * 기호 키. 자판 위치(e.code)로 맞춰서 한글 자판이어도 한영 전환 없이 된다.
@@ -40,6 +41,17 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
   const bullet = popup.kind === 'state' ? (elements.find((e) => e.id === popup.id) as BulletEl | undefined) : undefined
   const x = popup.kind === 'insert' ? popup.x : bullet?.x ?? 0
   const y = popup.kind === 'insert' ? popup.y : bullet?.y ?? 0
+  // 화면 밖으로 나가지 않게 좌우로 밀어 넣는다
+  const popRef = useRef<HTMLDivElement>(null)
+  const [shift, setShift] = useState(0)
+  useLayoutEffect(() => {
+    const el = popRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const base = r.left - shift
+    const fix = base < 8 ? 8 - base : base + r.width > window.innerWidth - 8 ? window.innerWidth - 8 - (base + r.width) : 0
+    if (Math.abs(fix - shift) > 0.5) setShift(fix)
+  })
   // 미리보기 색: 새로 넣으면 지금 고른 펜 색, 이미 있는 기호면 그 기호 색
   const penColor = useStore((s) => s.lineStyle.color)
   const glyphColor = bullet?.color ?? (popup.kind === 'insert' ? penColor : undefined)
@@ -102,8 +114,9 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
 
   return (
     <div
+      ref={popRef}
       className={'sym-popup' + (below ? ' below' : '')}
-      style={{ left: (x + 0.5) * cell, top: below ? (y + 1) * cell + 6 : y * cell - 6 }}
+      style={{ left: (x + 0.5) * cell + shift, top: below ? (y + 1) * cell + 6 : y * cell - 6 }}
       onPointerDown={(e) => e.preventDefault()}
       role="menu"
     >
@@ -148,6 +161,11 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
       {bullet && (
         <>
           <span className="sym-sep" />
+          {/* 기호 색: 누르면 펜 색 5가지가 펼쳐진다 */}
+          <span className="sym-opt sym-color">
+            <ColorDot items={[bullet]} colors={INK_COLORS} fallback={INK_COLORS[0].color} label="기호 색" below={below} onPick={(c) => st.recolorIds([bullet.id], c)} />
+            <span className="sym-label">색</span>
+          </span>
           <button role="menuitem" className={'sym-opt' + (bullet.cancelled ? ' on' : '')} onClick={() => st.toggleCancel(bullet.id)}>
             <span className="sym-strike">가</span>
             <span className="sym-label">취소</span>
