@@ -49,6 +49,7 @@ export const INK_COLORS = [
   { name: '파랑', color: '#2f5d9e' },
   { name: '빨강', color: '#c2412d' },
   { name: '초록', color: '#2e7d5b' },
+  { name: '회색', color: '#8a8781' },
 ]
 
 export interface Notebook {
@@ -62,7 +63,8 @@ import type { FontKey } from './fonts'
 
 /** 글자 크기: 아주 작게, 작게, 보통 (없으면 보통) */
 export type TextSize = 'xs' | 's' | 'm'
-export type TextAlign = 'left' | 'center' | 'right'
+/** justify(양쪽): 네모칸 줄마다 네모칸 폭에 맞춰 글자 사이를 벌린다. 줄 글자는 왼쪽과 같다 */
+export type TextAlign = 'left' | 'center' | 'right' | 'justify'
 /** 세로 정렬: 줄 글자는 자기 칸 안에서, 네모칸 글자는 네모칸 안에서 */
 export type TextVAlign = 'top' | 'middle' | 'bottom'
 
@@ -79,6 +81,8 @@ export interface TextEl {
   /** 글자가 차지한 칸들 안에서의 정렬 (칸 하나에 숫자를 가운데 쓰는 용도) */
   align?: TextAlign
   valign?: TextVAlign
+  /** 글자 색 (없으면 먹색) */
+  color?: string
 }
 
 export type PenType = 'ballpoint' | 'pencil'
@@ -92,6 +96,8 @@ export interface LineEl {
   y2: number
   width: 1 | 2
   dash: boolean
+  /** 두 줄 (나란한 선 두 개) */
+  double?: boolean
   color: string
   /** 없으면 볼펜 (예전 데이터) */
   pen?: PenType
@@ -112,6 +118,8 @@ export interface BoxEl {
   font?: FontKey
   align?: TextAlign
   valign?: TextVAlign
+  /** 글자 색 (없으면 먹색) */
+  color?: string
 }
 
 /** 불렛저널 기호: 할 일 •, 완료 ×, 미룸 >, 일정으로 옮김 <, 일정 ○, 메모 – */
@@ -125,6 +133,8 @@ export interface BulletEl {
   state: BulletState
   /** 취소: 기호는 그대로, 오른쪽 글자에 취소선 */
   cancelled: boolean
+  /** 기호 색 (넣을 때 고른 펜 색). 없으면 먹색 */
+  color?: string
 }
 
 /** 단색 선 아이콘 (해, 달, 밥 등). size칸 × size칸 */
@@ -180,4 +190,12 @@ export function isLight(hex: string) {
   const g = (n >> 8) & 255
   const b = n & 255
   return 0.299 * r + 0.587 * g + 0.114 * b > 150
+}
+
+/** 템플릿: 페이지(한 장 또는 펼침면 두 장)의 내용을 저장해 두고 새 페이지에 다시 쓰기 */
+export interface Template {
+  id: string
+  name: string
+  pages: { cols: number; rows: number; elements: El[] }[]
+  createdAt: number
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { currentPage, useStore } from '../store'
 import { DEFAULT_FONT, FONTS, fontOf, type FontInfo } from '../fonts'
 import type { TextAlign, TextSize, TextVAlign } from '../types'
+import { tip } from './Tooltip'
 
 const SIZES: { size: TextSize; label: string; px: number }[] = [
   { size: 'm', label: '보통', px: 17 },
@@ -14,6 +15,7 @@ const ALIGNS: { align: TextAlign; label: string; d: string }[] = [
   { align: 'left', label: '왼쪽', d: 'M4 6h16M4 10h10M4 14h16M4 18h10' },
   { align: 'center', label: '가운데', d: 'M4 6h16M7 10h10M4 14h16M7 18h10' },
   { align: 'right', label: '오른쪽', d: 'M4 6h16M10 10h10M4 14h16M10 18h10' },
+  { align: 'justify', label: '양쪽', d: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
 ]
 
 const VALIGNS: { valign: TextVAlign; label: string; d: string }[] = [
@@ -205,7 +207,7 @@ export function TextStylePanel({ anchor, onClose }: { anchor: HTMLElement; onClo
       </div>
 
       <div className="style-label">
-        가로 정렬 <span className="muted">· 글자가 차지한 칸 안에서</span>
+        가로 정렬 <span className="muted">· 글자가 차지한 칸 안에서, 양쪽은 네모칸에</span>
       </div>
       <div className="style-row">
         {ALIGNS.map((o) => (
@@ -253,7 +255,8 @@ export function TextStyleButton({ className = 'tool', label }: { className?: str
         ref={setAnchor}
         className={className + (open ? ' on' : '')}
         onClick={() => setOpen((v) => !v)}
-        title="글자 스타일: 굵게, 글씨체, 크기, 정렬"
+        {...tip('글자 스타일', '굵게 · 글씨체 · 크기 · 정렬', 'style')}
+        data-shortcut="style"
         aria-expanded={open}
       >
         <span className="aa">

@@ -7,6 +7,18 @@ export interface Placement {
   to: string
 }
 
+/**
+ * 불러올 때 쓰는 가벼운 보정: 시작 칸만 페이지 안으로.
+ * 줄 글자 폭은 글씨체가 아직 안 불러와졌으면 다른 글씨체로 재져서 틀리므로, 폭으로는 밀지 않는다
+ * (예전엔 여기서 오른쪽 끝 글자가 저장·불러오기마다 한 칸씩 왼쪽으로 밀렸다).
+ */
+export function clampStart(el: El, page: Pick<Page, 'cols' | 'rows'>): El {
+  if (el.type !== 'text') return clampInto(el, page)
+  const x = Math.max(0, Math.min(page.cols - 1, el.x))
+  const y = Math.max(0, Math.min(page.rows - 1, el.y))
+  return x !== el.x || y !== el.y ? { ...el, x, y } : el
+}
+
 /** 항목이 페이지 안에 다 보이도록 밀어 넣는다 (선은 점 위에, 나머지는 칸 안에) */
 export function clampInto(el: El, page: Pick<Page, 'cols' | 'rows'>): El {
   const b = elBox(el)

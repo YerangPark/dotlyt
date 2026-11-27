@@ -25,4 +25,4 @@ SIL OPEN FONT LICENSE 1.1. 각 글씨체의 라이선스 전문은 같은 폴더
 
 ## 깍두기 도면체 (`kkakdugi/`)
 
-KkakdugiDrafting-Regular.ttf. Copyright 2026 The Kkakdugi Drafting Project Authors (https://github.com/dynamic-potato/kkakdugi-drafting). SIL OFL 1.1, 전문은 `kkakdugi/OFL.txt`. 굵게는 앱이 직접 그려서 Regular 하나만 넣었다.
+KkakdugiDrafting-Regular.woff2 (받은 ttf를 woff2로 바꾼 것, OFL에서 허용). Copyright 2026 The Kkakdugi Drafting Project Authors (https://github.com/dynamic-potato/kkakdugi-drafting). SIL OFL 1.1, 전문은 `kkakdugi/OFL.txt`. 굵게는 앱이 직접 그려서 Regular 하나만 넣었다.

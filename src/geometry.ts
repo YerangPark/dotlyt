@@ -14,7 +14,7 @@ export const DOT_GRAB = 0.34
 export const BOX_PAD = 0.25
 
 /** 줄 글자 크기 (칸 높이 대비) */
-export const FONT_SIZES: Record<TextSize, number> = { xs: 0.44, s: 0.58, m: 0.72 }
+export const FONT_SIZES: Record<TextSize, number> = { xs: 0.38, s: 0.5, m: 0.62 }
 /** 네모칸 글자: 높이에 맞춘 크기에 곱하는 비율 */
 const BOX_SCALE: Record<TextSize, number> = { xs: 0.5, s: 0.7, m: 1 }
 export const fontSizeOf = (size?: TextSize) => FONT_SIZES[size ?? 'm']
@@ -26,10 +26,44 @@ export function textWidth(text: string, bold = false, size?: TextSize, font?: Fo
 
 /** 네모칸 글자 크기: 칸 높이에 맞추고, 넓이를 넘으면 줄인다 */
 export function boxFontSize(b: Pick<BoxEl, 'w' | 'h' | 'text' | 'bold' | 'size' | 'font'>) {
-  const byH = b.h * 0.85 * BOX_SCALE[b.size ?? 'm']
-  const perUnit = measureText(b.text || '가', b.bold, b.font) / FONT_SIZE
+  const lines = boxLines(b.text)
+  const pitch = boxLinePitch(b.h, lines.length)
+  // 줄마다 칸 줄(pitch칸)에 맞추는 경우는 한 줄이 그 칸 높이에 맞게, 아니면 줄 수만큼 높이를 나눠 쓴다
+  const byH = pitch
+    ? pitch * 0.85 * BOX_SCALE[b.size ?? 'm']
+    : (b.h * 0.85 * BOX_SCALE[b.size ?? 'm']) / (1 + (lines.length - 1) * BOX_LINE_GAP)
+  const perUnit = Math.max(...lines.map((l) => measureText(l || '가', b.bold, b.font))) / FONT_SIZE
   const byW = (b.w - BOX_PAD * 2) / Math.max(perUnit, 0.01)
-  return Math.max(0.45, Math.min(byH, byW))
+  return Math.max(0.3, Math.min(byH, byW))
+}
+
+/** 네모칸 줄 간격 (글자 크기 대비) */
+export const BOX_LINE_GAP = 1.25
+/** 네모칸 글자는 Shift+Enter로 줄을 바꿀 수 있다 */
+export const boxLines = (text: string) => text.split('\n')
+
+/**
+ * 여러 줄이고 줄 수만큼 칸이 있으면, 한 줄이 차지할 칸 수 (칸 줄에 딱 맞춰 쓰기).
+ * 예: 높이 2칸에 두 줄 → 1칸씩, 4칸에 두 줄 → 2칸씩. 칸이 모자라면 0 (글자 크기로 줄 간격을 정한다).
+ */
+export function boxLinePitch(h: number, n: number) {
+  return n > 1 && n <= h ? Math.floor(h / n) : 0
+}
+
+/** 네모칸 여러 줄의 각 줄 가운데 y (네모칸 위 기준). fs: 실제 글자 크기(글씨체 배율 포함) */
+export function boxLineYs(valign: TextVAlign | undefined, fs: number, h: number, n: number) {
+  const pitch = boxLinePitch(h, n)
+  if (pitch) {
+    // 칸 줄에 맞춘다: 줄 묶음을 위·가운데·아래 칸에 놓고, 줄마다 자기 칸 가운데에
+    const block = n * pitch
+    const start = valign === 'top' ? 0 : valign === 'bottom' ? h - block : Math.floor((h - block) / 2)
+    const mid = textMidY('middle', fs, pitch)
+    return Array.from({ length: n }, (_, i) => start + i * pitch + mid)
+  }
+  const step = fs * BOX_LINE_GAP
+  const block = fs + (n - 1) * step
+  const mid = textMidY(valign, block, h)
+  return Array.from({ length: n }, (_, i) => mid - ((n - 1) * step) / 2 + i * step)
 }
 
 export function distToDot(p: Pt) {
@@ -104,7 +138,8 @@ export function inkShift(text: string, font?: FontKey, size?: TextSize) {
  * 칸 중심(오른쪽 끝)에 바로 맞춘다 (글꼴이 늦게 불려 와 폭을 잘못 재도 어긋나지 않게).
  */
 export function textAnchor(el: Pick<TextEl, 'x' | 'text' | 'bold' | 'size' | 'align' | 'font'>) {
-  const a = el.align ?? 'left'
+  // 줄 글자의 양쪽 정렬은 차지한 칸이 곧 글자 폭이라 왼쪽과 같다
+  const a = el.align === 'justify' ? 'left' : (el.align ?? 'left')
   if (a === 'left') return { x: el.x + TEXT_PAD, anchor: 'start' as const }
   const n = textCells(el.text, el.bold, el.size, el.font)
   if (a === 'right') return { x: el.x + n - TEXT_PAD, anchor: 'end' as const }
@@ -136,7 +171,7 @@ export function elBox(el: El): Box {
   if (el.type === 'mark') return { x1: el.x, y1: el.y, x2: el.x + el.w, y2: el.y + el.h }
   if (el.type === 'text') {
     const ink = textInk(el)
-    return { x1: el.x, y1: el.y, x2: el.align && el.align !== 'left' ? el.x + ink.n : ink.end, y2: el.y + 1 }
+    return { x1: el.x, y1: el.y, x2: el.align && el.align !== 'left' && el.align !== 'justify' ? el.x + ink.n : ink.end, y2: el.y + 1 }
   }
   return {
     x1: Math.min(el.x1, el.x2),

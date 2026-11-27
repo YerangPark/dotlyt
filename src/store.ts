@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { elBox, findBulletAt, findTextAt, textCells, translate } from './geometry'
-import { clampGroup, clampInto, type Placement } from './move'
+import { elBox, findBulletAt, findTextAt, resetMeasureCache, textCells, translate } from './geometry'
+import { clampGroup, clampInto, clampStart, type Placement } from './move'
 import {
   HIGHLIGHT_COLORS,
   INK_COLORS,
@@ -15,14 +15,41 @@ import {
   type Page,
   type PenType,
   type Pt,
+  type Template,
   type TextAlign,
   type TextVAlign,
   type TextSize,
 } from './types'
-import { DEFAULT_FONT, type FontKey } from './fonts'
+import { DEFAULT_FONT, fontOf, type FontKey } from './fonts'
 
 const STORAGE_KEY = 'dotlyt:v1'
 const UI_KEY = 'dotlyt:ui'
+const TEMPLATES_KEY = 'dotlyt:templates'
+
+function loadTemplates(): Template[] {
+  try {
+    const d = JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]')
+    return Array.isArray(d) ? d : []
+  } catch {
+    return []
+  }
+}
+function saveTemplates(list: Template[]) {
+  try {
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(list))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 요소를 새 id로 복사해서 페이지 크기에 맞춘다 */
+function cloneInto(els: El[], page: Pick<Page, 'cols' | 'rows'>): El[] {
+  return clampGroup(
+    els.map((e) => ({ ...e, id: uid() }) as El),
+    page,
+  )
+}
 const HISTORY_LIMIT = 200
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
@@ -31,6 +58,27 @@ interface Persisted {
   notebook: Notebook | null
   pages: Page[]
   currentPageId: string | null
+  /** 저장 형식 판. 2부터 형광펜은 한 획(가로·세로 띠, 점)씩 저장한다 */
+  v?: number
+}
+const DATA_VERSION = 2
+
+/** 판 1(예전)에는 세로로 칠한 형광펜이 한 칸짜리로 쌓여 저장됐다: 한 획(세로 띠)으로 묶는다. 판 2부터는 점이 진짜 점이라 묶지 않는다 */
+function joinVerticalMarks(els: El[]): El[] {
+  const singles = els.filter((e): e is MarkEl => e.type === 'mark' && e.w === 1 && e.h === 1)
+  if (singles.length < 2) return els
+  const used = new Set<string>()
+  const joined: MarkEl[] = []
+  const at = new Map(singles.map((m) => [`${m.x},${m.y},${m.color}`, m]))
+  for (const m of [...singles].sort((a, b) => a.x - b.x || a.y - b.y)) {
+    if (used.has(m.id) || at.has(`${m.x},${m.y - 1},${m.color}`)) continue
+    let h = 1
+    while (at.has(`${m.x},${m.y + h},${m.color}`)) h++
+    if (h < 2) continue
+    for (let i = 0; i < h; i++) used.add(at.get(`${m.x},${m.y + i},${m.color}`)!.id)
+    joined.push({ ...m, h })
+  }
+  return joined.length ? [...joined, ...els.filter((e) => !used.has(e.id))] : els
 }
 
 function load(): Persisted {
@@ -39,11 +87,15 @@ function load(): Persisted {
     if (raw) {
       const d = JSON.parse(raw) as Persisted
       if (d && Array.isArray(d.pages)) {
+        // 예전 판인지: 판 번호가 없고, 한 칸보다 높은 형광펜(새 판의 세로 획)도 없을 때만
+        const legacyMarks = (d.v ?? 1) < 2 && !d.pages.some((p) => p.elements.some((e) => e.type === 'mark' && e.h > 1))
         // 글자 없이 남은 네모칸(편집 중에 창을 닫은 경우)은 치운다
         // 페이지 밖으로 밀려나 안 보이던 것(예전 옮기기)은 가장자리 안쪽으로 되돌린다
         d.pages = d.pages.map((p) => ({
           ...p,
-          elements: p.elements.filter((e) => !(e.type === 'box' && !e.text.trim()) && !(e.type === 'text' && e.text === '')).map((e) => clampInto(e, p)),
+          elements: ((els: El[]) => (legacyMarks ? joinVerticalMarks(els) : els))(
+            p.elements.filter((e) => !(e.type === 'box' && !e.text.trim()) && !(e.type === 'text' && e.text === '')).map((e) => clampStart(e, p)),
+          ),
         }))
         return d
       }
@@ -81,7 +133,7 @@ function saveUi() {
 export function persist(): boolean {
   const { notebook, pages, currentPageId } = useStore.getState()
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ notebook, pages, currentPageId }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ notebook, pages, currentPageId, v: DATA_VERSION }))
     return true
   } catch {
     return false
@@ -105,13 +157,27 @@ export interface Cursor {
 export interface LineStyle {
   width: 1 | 2
   dash: boolean
+  double: boolean
   color: string
   pen: PenType
 }
 
-/** 되돌리기 기록. 양쪽 페이지에 걸친 선처럼 여러 페이지를 한 번에 바꾼 건 같은 group으로 묶어서 함께 되돌린다. */
-type Snap = { els: El[]; group?: string }
+/**
+ * 되돌리기 기록 (페이지마다). 양쪽 페이지에 걸친 선처럼 여러 페이지를 한 번에 바꾼 건 같은 group으로 묶어서 함께 되돌린다.
+ * t: 바꾼 순서(모든 페이지 통틀어), u: 되돌린 순서. 펼침면에서 양쪽 페이지를 오가며 그려도 그린 순서대로 되돌린다.
+ */
+type Snap = { els: El[]; group?: string; t?: number; u?: number }
 type History = Record<string, { past: Snap[]; future: Snap[] }>
+
+let seq = 0
+const nextSeq = () => ++seq
+
+/** 새로 바꾸면 모든 페이지의 '다시 실행'을 비운다 (되돌리기는 한 줄로 이어진 기록) */
+function freshHistory(h: History): History {
+  const out: History = {}
+  for (const [id, v] of Object.entries(h)) out[id] = v.future.length ? { past: v.past, future: [] } : v
+  return out
+}
 
 /** 양쪽 페이지에 걸친 선을 긋는 중일 때, 반대쪽 페이지에 보여줄 미리보기 */
 export type CrossPreview = { pageId: string; a: Pt; b: Pt; id: string } | null
@@ -125,7 +191,8 @@ export type Popup =
   | null
 
 /** 줄 맨 앞 빠른 입력 */
-const QUICK: Record<string, BulletState> = { '* ': 'task', 'o ': 'event', 'O ': 'event', '- ': 'note' }
+// 한글 자판에서 o는 ㅐ, Shift+o는 ㅒ라서 같이 받는다 (한영 전환 없이)
+const QUICK: Record<string, BulletState> = { '* ': 'task', 'o ': 'event', 'O ': 'event', 'ㅐ ': 'event', 'ㅒ ': 'event', '- ': 'note' }
 
 interface State extends Persisted {
   cursor: Cursor | null
@@ -168,6 +235,12 @@ interface State extends Persisted {
   moveDelta: { dx: number; dy: number } | null
   setMoveDelta: (d: State['moveDelta']) => void
   setIndex: (pageId: string, tab: { name: string; color: string } | null) => void
+  templates: Template[]
+  /** scope: 지금 페이지 한 장, 또는 펼침면 두 장. 저장 못 하면 false */
+  saveTemplate: (name: string, scope: 'page' | 'spread') => boolean
+  deleteTemplate: (id: string) => void
+  /** new: 지금 페이지(펼침면) 뒤에 새 페이지로, here: 지금 페이지(펼침면)에 겹쳐 넣기 (되돌리기 가능) */
+  applyTemplate: (id: string, mode: 'new' | 'here') => void
 
   openAt: (x: number, y: number) => void
   editElement: (id: string) => void
@@ -208,12 +281,16 @@ interface State extends Persisted {
   openInsertPopup: () => boolean
   setShowGuides: (on: boolean) => void
   setLineStyle: (patch: Partial<LineStyle>) => void
+  /** 고른 것의 색만 바꾼다 (펜 색은 그대로). ink: 글자·네모칸·아이콘·기호·선, mark: 형광펜 */
+  recolorSelection: (color: string, target?: 'ink' | 'mark') => void
   addLine: (a: Pt, b: Pt, id?: string) => void
   /** 여러 페이지에 선을 한 번에 (되돌리기 한 번으로 함께 사라짐) */
   addLinePieces: (pieces: { pageId: string; a: Pt; b: Pt; id?: string }[]) => void
   crossPreview: CrossPreview
   setCrossPreview: (c: CrossPreview) => void
   addBox: (x: number, y: number, w: number, h: number) => void
+  /** 네모칸 크기·위치 바꾸기 (모서리 손잡이로 끌기). 되돌리기 한 번 */
+  resizeBox: (id: string, r: { x: number; y: number; w: number; h: number }) => void
   /** 고른 것을 옮긴 결과 적용 (펼침면 반대쪽 페이지로 넘어가는 것 포함) */
   applyPlacements: (placements: Placement[]) => void
   /** 복사해 둔 항목. 좌표는 묶음 왼쪽 위(0,0) 기준, origin은 복사한 자리 */
@@ -241,7 +318,7 @@ function withElements(s: State, next: El[], record = true): Partial<State> {
   return {
     pages: s.pages.map((p) => (p.id === page.id ? { ...p, elements: next, updatedAt: Date.now() } : p)),
     history: record
-      ? { ...s.history, [page.id]: { past: [...h.past, { els: page.elements }].slice(-HISTORY_LIMIT), future: [] } }
+      ? { ...freshHistory(s.history), [page.id]: { past: [...h.past, { els: page.elements, t: nextSeq() }].slice(-HISTORY_LIMIT), future: [] } }
       : s.history,
   }
 }
@@ -282,11 +359,12 @@ function withPages(s: State, fn: (els: El[], pageId: string) => El[] | null): Pa
   const ids = Object.keys(changed)
   if (!ids.length) return {}
   const group = ids.length > 1 ? uid() : undefined
-  const history = { ...s.history }
+  const t = nextSeq()
+  const history = freshHistory(s.history)
   const pages = s.pages.map((p) => {
     if (!changed[p.id]) return p
     const h = history[p.id] ?? { past: [], future: [] }
-    history[p.id] = { past: [...h.past, { els: p.elements, group }].slice(-HISTORY_LIMIT), future: [] }
+    history[p.id] = { past: [...h.past, { els: p.elements, group, t }].slice(-HISTORY_LIMIT), future: [] }
     return { ...p, elements: changed[p.id], updatedAt: Date.now() }
   })
   return { pages, history }
@@ -303,11 +381,46 @@ const mapFit = (s: State, ids: string[], fn: (e: El) => El) => (els: El[], pageI
 const initial = load()
 const ui = loadUi()
 
+/** 지금 보이는 페이지들 (펼침면이면 양쪽) */
+function visiblePageIds(s: State): string[] {
+  const idx = s.pages.findIndex((p) => p.id === s.currentPageId)
+  if (idx < 0) return []
+  return (s.spread ? s.pages.slice(spreadStart(idx), spreadStart(idx) + 2) : [s.pages[idx]]).map((p) => p.id)
+}
+
+/** 되돌릴 페이지: 보이는 페이지 중 가장 최근에 바꾼 곳 */
+export function undoTarget(s: State): string | null {
+  let best: string | null = null
+  let bestT = -1
+  for (const id of visiblePageIds(s)) {
+    const last = s.history[id]?.past.slice(-1)[0]
+    if (last && (last.t ?? 0) > bestT) {
+      bestT = last.t ?? 0
+      best = id
+    }
+  }
+  return best
+}
+
+/** 다시 실행할 페이지: 보이는 페이지 중 가장 최근에 되돌린 곳 */
+export function redoTarget(s: State): string | null {
+  let best: string | null = null
+  let bestU = -1
+  for (const id of visiblePageIds(s)) {
+    const first = s.history[id]?.future[0]
+    if (first && (first.u ?? 0) > bestU) {
+      bestU = first.u ?? 0
+      best = id
+    }
+  }
+  return best
+}
+
 export const useStore = create<State>()((set, get) => ({
   ...initial,
   cursor: null,
   selection: [],
-  lineStyle: { width: 1, dash: false, color: INK_COLORS[0].color, pen: 'ballpoint', ...ui.lineStyle },
+  lineStyle: { width: 1, dash: false, double: false, color: INK_COLORS[0].color, pen: 'ballpoint', ...ui.lineStyle },
   selectMode: false,
   eraserMode: false,
   highlightMode: false,
@@ -371,6 +484,62 @@ export const useStore = create<State>()((set, get) => ({
     const s = get()
     if (s.currentPageId === id || !s.pages.some((p) => p.id === id)) return
     set({ ...leaveCursor(s), currentPageId: id, selection: [] })
+  },
+  templates: loadTemplates(),
+  saveTemplate: (name, scope) => {
+    const s = get()
+    const idx = s.pages.findIndex((p) => p.id === s.currentPageId)
+    if (idx < 0) return false
+    const src = scope === 'spread' && s.spread ? s.pages.slice(spreadStart(idx), spreadStart(idx) + 2) : [s.pages[idx]]
+    const t: Template = {
+      id: uid(),
+      name: name.trim() || '이름 없는 템플릿',
+      pages: src.map((p) => ({ cols: p.cols, rows: p.rows, elements: p.elements.map((e) => ({ ...e })) })),
+      createdAt: Date.now(),
+    }
+    const templates = [t, ...s.templates]
+    if (!saveTemplates(templates)) return false
+    set({ templates })
+    return true
+  },
+  deleteTemplate: (id) => {
+    const templates = get().templates.filter((t) => t.id !== id)
+    saveTemplates(templates)
+    set({ templates })
+  },
+  applyTemplate: (id, mode) => {
+    const s = get()
+    const t = s.templates.find((x) => x.id === id)
+    if (!t || !s.notebook) return
+    const idx = s.pages.findIndex((p) => p.id === s.currentPageId)
+    if (mode === 'new') {
+      // 펼침면이면 두 장씩 짝이 맞게 넣는다 (템플릿이 한 장이어도 빈 오른쪽 페이지를 같이)
+      const count = s.spread ? 2 : t.pages.length
+      const added = Array.from({ length: count }, (_, i) => {
+        const p = newPage(s.notebook!)
+        const tp = t.pages[i]
+        return tp ? { ...p, elements: cloneInto(tp.elements, p) } : p
+      })
+      const pages = [...s.pages]
+      pages.splice(s.spread ? spreadStart(idx) + 2 : idx + 1, 0, ...added)
+      set({ ...leaveCursor(s), pages, currentPageId: added[0].id, selection: [] })
+      return
+    }
+    const s1 = { ...s, ...leaveCursor(s) } as State
+    const targets = s.spread ? s1.pages.slice(spreadStart(idx), spreadStart(idx) + 2) : [s1.pages[idx]]
+    const fresh: string[] = []
+    set({
+      ...leaveCursor(s),
+      ...withPages(s1, (els, pid) => {
+        const k = targets.findIndex((p) => p.id === pid)
+        const tp = t.pages[k]
+        if (k < 0 || !tp) return null
+        const add = cloneInto(tp.elements, targets[k])
+        fresh.push(...add.map((e) => e.id))
+        return [...els, ...add]
+      }),
+      selection: fresh,
+    })
   },
   setIndex: (pageId, tab) => {
     const s = get()
@@ -441,7 +610,7 @@ export const useStore = create<State>()((set, get) => ({
     const isFresh = !editing || (editing.type === 'text' && editing.text.length < value.length && editing.text.length <= 1)
     if (quick && isFresh && editId && !findBulletAt(els, c.x, c.y) && c.x < page.cols - 1) {
       els = els.filter((e) => e.id !== editId)
-      const bullet: BulletEl = { id: uid(), type: 'bullet', x: c.x, y: c.y, state: quick, cancelled: false }
+      const bullet: BulletEl = { id: uid(), type: 'bullet', x: c.x, y: c.y, state: quick, cancelled: false, color: s.lineStyle.color }
       els = [...els, bullet]
       set({ ...withElements(s, els, !c.dirty), cursor: { x: c.x + 1, y: c.y, editId: null, dirty: false } })
       return
@@ -471,7 +640,19 @@ export const useStore = create<State>()((set, get) => ({
       saveUi()
       return
     }
-    set(withPages(s, mapFit(s, targets.map((t) => t.id), (e) => ({ ...e, font }) as El)))
+    const ids = targets.map((t) => t.id)
+    const apply = () => {
+      const now = get()
+      set(withPages(now, mapFit(now, ids, (e) => ({ ...e, font }) as El)))
+    }
+    // 아직 안 불러온 글씨체면 불러온 뒤에 폭을 재서 맞춘다 (먼저 재면 다른 글씨체 폭으로 밀려난다)
+    const f = fontOf(font)
+    if (typeof document !== 'undefined' && document.fonts && !document.fonts.check(`16px "${f.load}"`, '가A')) {
+      document.fonts.load(`16px "${f.load}"`, '가나A1').then(() => {
+        resetMeasureCache()
+        apply()
+      }, apply)
+    } else apply()
   },
   setValign: (valign) => {
     const s = get()
@@ -514,7 +695,7 @@ export const useStore = create<State>()((set, get) => ({
     const p = s.popup
     if (!page || p?.kind !== 'insert') return
     const els = page.elements.filter((e) => !(e.type === 'bullet' && e.x === p.x && e.y === p.y))
-    const bullet: BulletEl = { id: uid(), type: 'bullet', x: p.x, y: p.y, state, cancelled: false }
+    const bullet: BulletEl = { id: uid(), type: 'bullet', x: p.x, y: p.y, state, cancelled: false, color: s.lineStyle.color }
     set({
       ...withElements(s, [...els, bullet]),
       popup: null,
@@ -566,33 +747,52 @@ export const useStore = create<State>()((set, get) => ({
       withPages(s, (els, pageId) => {
         const todo = cells[pageId]
         if (!todo?.length) return null
-        // 칸 지도로 펼친 다음 칠하고, 한 줄에서 같은 색으로 이어진 칸끼리 다시 묶는다
-        const map = new Map<string, string>()
-        for (const m of els) {
-          if (m.type !== 'mark') continue
-          for (let dy = 0; dy < m.h; dy++) for (let dx = 0; dx < m.w; dx++) map.set(`${m.x + dx},${m.y + dy}`, m.color)
+        const marks = els.filter((e): e is MarkEl => e.type === 'mark')
+        const others = els.filter((e) => e.type !== 'mark')
+        if (color) {
+          // 한 번 그은 것은 한 획: 가로 띠, 세로 띠, 또는 콕 찍은 점. 이미 있는 형광펜과 합치지 않는다
+          const xs = todo.map((c) => c.x)
+          const ys = todo.map((c) => c.y)
+          const stroke: MarkEl = {
+            id: uid(),
+            type: 'mark',
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            w: Math.max(...xs) - Math.min(...xs) + 1,
+            h: Math.max(...ys) - Math.min(...ys) + 1,
+            color,
+          }
+          // 같은 자리를 다시 그으면 덮어쓴다 (새 획 안에 다 들어가는 예전 획은 뺀다)
+          const inside = (m: MarkEl) => m.x >= stroke.x && m.y >= stroke.y && m.x + m.w <= stroke.x + stroke.w && m.y + m.h <= stroke.y + stroke.h
+          return [...marks.filter((m) => !inside(m)), stroke, ...others]
         }
+        // 지우기: 문지른 칸만 빼고, 남은 부분은 같은 방향의 획으로 나눠 남긴다
+        const hit = new Set(todo.map((c) => `${c.x},${c.y}`))
         let changed = false
-        for (const c of todo) {
-          const k = `${c.x},${c.y}`
-          if (color) {
-            if (map.get(k) !== color) (map.set(k, color), (changed = true))
-          } else if (map.delete(k)) changed = true
+        const next: MarkEl[] = []
+        for (const m of marks) {
+          const vertical = m.w === 1 && m.h > 1
+          const cellsOf: { x: number; y: number }[] = []
+          for (let dy = 0; dy < m.h; dy++) for (let dx = 0; dx < m.w; dx++) cellsOf.push({ x: m.x + dx, y: m.y + dy })
+          const keep = cellsOf.filter((c) => !hit.has(`${c.x},${c.y}`))
+          if (keep.length === cellsOf.length) {
+            next.push(m)
+            continue
+          }
+          changed = true
+          // 남은 칸을 줄(세로 획이면 열) 단위로 이어진 조각으로
+          for (const c of keep) {
+            const last = next[next.length - 1]
+            const joins = last && last.color === m.color && (vertical
+              ? last.x === c.x && last.w === 1 && last.y + last.h === c.y && last.id.startsWith(m.id)
+              : last.y === c.y && last.h === 1 && last.x + last.w === c.x && last.id.startsWith(m.id))
+            if (joins) {
+              if (vertical) last.h++
+              else last.w++
+            } else next.push({ id: m.id + '-' + uid(), type: 'mark', x: c.x, y: c.y, w: 1, h: 1, color: m.color })
+          }
         }
-        if (!changed) return null
-        const cellsSorted = [...map.entries()]
-          .map(([k, col]) => {
-            const [x, y] = k.split(',').map(Number)
-            return { x, y, col }
-          })
-          .sort((a, b) => a.y - b.y || a.x - b.x)
-        const marks: MarkEl[] = []
-        for (const c of cellsSorted) {
-          const last = marks[marks.length - 1]
-          if (last && last.y === c.y && last.x + last.w === c.x && last.color === c.col) last.w++
-          else marks.push({ id: uid(), type: 'mark', x: c.x, y: c.y, w: 1, h: 1, color: c.col })
-        }
-        return [...marks, ...els.filter((e) => e.type !== 'mark')]
+        return changed ? [...next, ...others] : null
       }),
     )
   },
@@ -674,13 +874,23 @@ export const useStore = create<State>()((set, get) => ({
     saveUi()
   },
 
+  recolorSelection: (color, target = 'ink') => {
+    const s = get()
+    const kinds: El['type'][] = target === 'mark' ? ['mark'] : ['text', 'box', 'icon', 'bullet', 'line']
+    const ids = s.pages
+      .flatMap((p) => p.elements)
+      .filter((e) => s.selection.includes(e.id) && kinds.includes(e.type))
+      .map((e) => e.id)
+    if (!ids.length) return
+    set(withPages(s, (els) => (els.some((e) => ids.includes(e.id)) ? els.map((e) => (ids.includes(e.id) ? ({ ...e, color } as El) : e)) : null)))
+  },
   setLineStyle: (patch) => {
     const s = get()
     const lineStyle = { ...s.lineStyle, ...patch }
     const sel = s.pages.flatMap((p) => p.elements).filter((e) => s.selection.includes(e.id))
     const lineIds = sel.filter((e) => e.type === 'line').map((e) => e.id)
-    // 아이콘은 색만 따라간다
-    const iconIds = patch.color ? sel.filter((e) => e.type === 'icon').map((e) => e.id) : []
+    // 아이콘·기호는 색만 따라간다
+    const iconIds = patch.color ? sel.filter((e) => e.type === 'icon' || e.type === 'bullet').map((e) => e.id) : []
     set({
       lineStyle,
       ...withPages(s, (els) => {
@@ -704,7 +914,8 @@ export const useStore = create<State>()((set, get) => ({
   addLinePieces: (pieces) => {
     const s = get()
     const group = pieces.length > 1 ? uid() : undefined
-    const history = { ...s.history }
+    const t = nextSeq()
+    const history = freshHistory(s.history)
     const pages = s.pages.map((p) => {
       const mine = pieces.filter((pc) => pc.pageId === p.id)
       if (!mine.length) return p
@@ -718,10 +929,19 @@ export const useStore = create<State>()((set, get) => ({
         ...s.lineStyle,
       }))
       const h = history[p.id] ?? { past: [], future: [] }
-      history[p.id] = { past: [...h.past, { els: p.elements, group }].slice(-HISTORY_LIMIT), future: [] }
+      history[p.id] = { past: [...h.past, { els: p.elements, group, t }].slice(-HISTORY_LIMIT), future: [] }
       return { ...p, elements: [...p.elements, ...lines], updatedAt: Date.now() }
     })
     set({ pages, history, crossPreview: null })
+  },
+
+  resizeBox: (id, r) => {
+    const s = get()
+    const page = currentPage(s)
+    const el = page?.elements.find((e) => e.id === id)
+    if (!page || el?.type !== 'box') return
+    if (el.x === r.x && el.y === r.y && el.w === r.w && el.h === r.h) return
+    set(withElements(s, page.elements.map((e) => (e.id === id ? { ...el, ...r } : e))))
   },
 
   // 네모칸을 만들고 바로 글자 입력을 시작한다
@@ -840,41 +1060,37 @@ export const useStore = create<State>()((set, get) => ({
 
   undo: () => {
     const s = get()
-    const page = currentPage(s)
-    const h = page && s.history[page.id]
-    if (!page || !h || !h.past.length) return
-    const group = h.past[h.past.length - 1].group
+    const target = undoTarget(s)
+    if (!target) return
+    const ph0 = s.history[target]
+    const group = ph0.past[ph0.past.length - 1].group
     // 같은 묶음으로 바뀐 다른 페이지도 함께 되돌린다
-    const ids = group
-      ? s.pages.filter((p) => (s.history[p.id]?.past ?? []).slice(-1)[0]?.group === group).map((p) => p.id)
-      : [page.id]
+    const ids = group ? s.pages.filter((p) => (s.history[p.id]?.past ?? []).slice(-1)[0]?.group === group).map((p) => p.id) : [target]
+    const u = nextSeq()
     const history = { ...s.history }
     const pages = s.pages.map((p) => {
       if (!ids.includes(p.id)) return p
       const ph = history[p.id]
       const prev = ph.past[ph.past.length - 1]
-      history[p.id] = { past: ph.past.slice(0, -1), future: [{ els: p.elements, group: prev.group }, ...ph.future] }
+      history[p.id] = { past: ph.past.slice(0, -1), future: [{ els: p.elements, group: prev.group, t: prev.t, u }, ...ph.future] }
       return { ...p, elements: prev.els, updatedAt: Date.now() }
     })
-    set({ pages, history, cursor: null, selection: [], popup: null })
+    set({ pages, history, currentPageId: target, cursor: null, selection: [], popup: null })
   },
   redo: () => {
     const s = get()
-    const page = currentPage(s)
-    const h = page && s.history[page.id]
-    if (!page || !h || !h.future.length) return
-    const group = h.future[0].group
-    const ids = group
-      ? s.pages.filter((p) => s.history[p.id]?.future[0]?.group === group).map((p) => p.id)
-      : [page.id]
+    const target = redoTarget(s)
+    if (!target) return
+    const group = s.history[target].future[0].group
+    const ids = group ? s.pages.filter((p) => s.history[p.id]?.future[0]?.group === group).map((p) => p.id) : [target]
     const history = { ...s.history }
     const pages = s.pages.map((p) => {
       if (!ids.includes(p.id)) return p
       const ph = history[p.id]
       const [next, ...rest] = ph.future
-      history[p.id] = { past: [...ph.past, { els: p.elements, group: next.group }], future: rest }
+      history[p.id] = { past: [...ph.past, { els: p.elements, group: next.group, t: next.t }], future: rest }
       return { ...p, elements: next.els, updatedAt: Date.now() }
     })
-    set({ pages, history, cursor: null, selection: [], popup: null })
+    set({ pages, history, currentPageId: target, cursor: null, selection: [], popup: null })
   },
 }))
