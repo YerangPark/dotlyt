@@ -283,6 +283,8 @@ interface State extends Persisted {
   setLineStyle: (patch: Partial<LineStyle>) => void
   /** 고른 것의 색만 바꾼다 (펜 색은 그대로). ink: 글자·네모칸·아이콘·기호·선, mark: 형광펜 */
   recolorSelection: (color: string, target?: 'ink' | 'mark') => void
+  /** 지정한 항목들의 색만 바꾼다 (기호 팝업 등) */
+  recolorIds: (ids: string[], color: string) => void
   addLine: (a: Pt, b: Pt, id?: string) => void
   /** 여러 페이지에 선을 한 번에 (되돌리기 한 번으로 함께 사라짐) */
   addLinePieces: (pieces: { pageId: string; a: Pt; b: Pt; id?: string }[]) => void
@@ -874,6 +876,10 @@ export const useStore = create<State>()((set, get) => ({
     saveUi()
   },
 
+  recolorIds: (ids, color) => {
+    const s = get()
+    set(withPages(s, (els) => (els.some((e) => ids.includes(e.id)) ? els.map((e) => (ids.includes(e.id) ? ({ ...e, color } as El) : e)) : null)))
+  },
   recolorSelection: (color, target = 'ink') => {
     const s = get()
     const kinds: El['type'][] = target === 'mark' ? ['mark'] : ['text', 'box', 'icon', 'bullet', 'line']

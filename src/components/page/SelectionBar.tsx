@@ -74,7 +74,7 @@ export function SelectionBar({ elements, selection, cell, cols, leaving }: { ele
 }
 
 /** 고른 것 막대의 컬러점: 지금 색을 보여주고, 누르면 고를 색들이 펼쳐진다. 색이 섞여 있으면 여러 색 점 */
-function ColorDot({
+export function ColorDot({
   items,
   colors,
   fallback,

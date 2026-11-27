@@ -3561,3 +3561,30 @@ h3 {
     opacity: 0;
   }
 }
+
+/* 기호 팝업 안 컬러점: 고른 것 막대와 같은 모양 */
+.sym-color {
+  cursor: default;
+}
+.sym-color .sel-color {
+  padding: 3px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.sym-color .sel-color:hover,
+.sym-color .sel-color.on {
+  background: var(--hover);
+}
+.sym-popup .sel-palette button {
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.sym-popup .sel-palette button.on,
+.sym-popup .sel-palette button:hover {
+  background: var(--hover);
+}
