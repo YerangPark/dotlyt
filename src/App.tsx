@@ -17,6 +17,8 @@ import { GuideTour, guideDone } from './components/GuideTour'
 import { TooltipLayer, tip } from './components/Tooltip'
 import { ModalClose } from './components/ModalClose'
 import { MoreMenu } from './components/MoreMenu'
+import { AccountDialog } from './components/AccountDialog'
+import { useSync } from './sync'
 
 export default function App() {
   const notebook = useStore((s) => s.notebook)
@@ -26,6 +28,8 @@ export default function App() {
   const [fromCover, setFromCover] = useState(false)
   const [backToCover, setBackToCover] = useState(false)
   const [setupLeaving, setSetupLeaving] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const sync = useSync()
   const [justCreated, setJustCreated] = useState(false)
 
   if (!notebook || setupLeaving) {
@@ -51,6 +55,21 @@ export default function App() {
             )
           }}
         />
+        {sync.enabled && (
+          <p className="setup-account">
+            {sync.email ? (
+              <>{sync.email}로 로그인했어요. 만든 노트는 계정에 저장돼요.</>
+            ) : (
+              <>
+                로그인 없이도 쓸 수 있지만, 노트가 이 브라우저에만 저장돼서 많이 쓰지는 못하고 다른 기기에서는 이어지지 않아요.{' '}
+                <button type="button" className="link-btn" onClick={() => setAccountOpen(true)}>
+                  로그인하기
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        {accountOpen && <AccountDialog onClose={() => setAccountOpen(false)} />}
       </div>
     )
   }
@@ -95,6 +114,8 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const addPage = useStore((s) => s.addPage)
   const updateNotebook = useStore((s) => s.updateNotebook)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const sync = useSync()
   const [indexEditFor, setIndexEditFor] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [overviewOpen, setOverviewOpen] = useState(false)
@@ -486,8 +507,22 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
               { label: '노트 설정', onClick: () => setSettingsOpen(true) },
               // 휴대폰은 ? 키를 누를 수 없으니 여기서 (사용 안내 다시 보기도 이 창에 있다)
               { label: '도움말', onClick: () => setHelpOpen(true) },
+              ...(sync.enabled ? [{ label: sync.email ? '계정' : '로그인', onClick: () => setAccountOpen(true) }] : []),
             ]}
           />
+          {sync.enabled && (
+            <button
+              className={'icon-btn bar-wide account-btn ' + (sync.email ? sync.state : 'out')}
+              onClick={() => setAccountOpen(true)}
+              {...tip(sync.email ? '계정' : '로그인', sync.email ? sync.email : '여러 기기에서 같은 노트 쓰기')}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8.5" r="3.5" />
+                <path d="M5 20c.8-3.4 3.6-5.5 7-5.5s6.2 2.1 7 5.5" />
+              </svg>
+              {sync.email && <span className="account-dot" aria-hidden />}
+            </button>
+          )}
           <button className="icon-btn bar-wide" onClick={() => setSettingsOpen(true)} {...tip('노트 설정', '이름 · 크기 · 표지 색')}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7">
               <circle cx="12" cy="12" r="3" />
@@ -587,6 +622,7 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           }}
         />
       )}
+      {accountOpen && <AccountDialog onClose={() => setAccountOpen(false)} />}
       {guideOpen && <GuideTour onClose={() => setGuideOpen(false)} />}
       {findOpen && <FindBar onClose={() => setFindOpen(false)} />}
       {templatesOpen && <TemplatesPanel onClose={() => setTemplatesOpen(false)} />}
