@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { fontOf } from '../fonts'
 import { FONT_SIZE, fontSizeOf, textAnchor, textMidY } from '../geometry'
 import { spreadStart, useStore } from '../store'
@@ -121,115 +122,132 @@ export function PagesOverview({ onClose }: { onClose: () => void }) {
   const dragging = drag?.moved ? pages.find((p) => p.id === drag.id) : undefined
 
   return (
-    <div className="overview" role="dialog" aria-label="모든 페이지">
-      <header className="ov-head">
-        <div className="ov-title">
-          <h2>모든 페이지</h2>
-          <span className="muted">{pages.length}쪽 · 끌어서 순서 바꾸기</span>
-        </div>
-        <div className="ov-actions">
-          <button className="btn ghost" onClick={() => setChecked(allChecked ? [] : pages.map((p) => p.id))}>
-            {allChecked ? '선택 해제' : '전체 선택'}
-          </button>
-          <button className="btn primary danger-fill" disabled={!live.length} onClick={() => setConfirm(true)}>
-            {live.length ? `${live.length}장 지우기` : '지우기'}
-          </button>
-          <button className="icon-btn" onClick={onClose} aria-label="닫기" title="닫기 (Esc)">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <div
-        className={'ov-grid' + (spread ? ' spread' : '')}
-        ref={gridRef}
-        onPointerMove={(e) => {
-          if (!drag) return
-          const moved = drag.moved || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6
-          setDrag({ ...drag, x: e.clientX, y: e.clientY, moved })
-          if (moved) setDropAt(targetIndex(e.clientX, e.clientY))
-        }}
-        onPointerUp={() => {
-          if (!drag) return
-          if (drag.moved && dropAt !== null) {
-            const from = pages.findIndex((p) => p.id === drag.id)
-            movePage(drag.id, dropAt > from ? dropAt - 1 : dropAt)
-          } else if (!drag.moved) {
-            goToPage(drag.id)
-            onClose()
-          }
-          setDrag(null)
-          setDropAt(null)
-        }}
-        onPointerCancel={() => {
-          setDrag(null)
-          setDropAt(null)
-        }}
-      >
-        {groups.map((g) => (
-          <div key={g.pages[0].id} className={'ov-group' + (g.start === curSpread ? ' current' : '')}>
-            {g.pages.map((p, k) => {
-              const i = g.start + k
-              const on = live.includes(p.id)
-              return (
-                <div
-                  key={p.id}
-                  className={
-                    'ov-card' +
-                    (on ? ' checked' : '') +
-                    (drag?.moved && drag.id === p.id ? ' lifted' : '') +
-                    (dropAt === i ? ' drop-before' : '') +
-                    (dropAt === i + 1 && i === pages.length - 1 ? ' drop-after' : '')
-                  }
-                  data-index={i}
-                  onPointerDown={(e) => {
-                    if (e.pointerType === 'mouse' && e.button !== 0) return
-                    if ((e.target as HTMLElement).closest('.ov-check')) return
-                    e.preventDefault()
-                    gridRef.current?.setPointerCapture?.(e.pointerId)
-                    setDrag({ id: p.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false })
-                  }}
-                >
-                  <div className="ov-thumb" style={{ aspectRatio: `${p.cols} / ${p.rows}` }}>
-                    <PageThumb page={p} />
-                    {p.index && (
-                      <span
-                        className="ov-tab"
-                        style={{ background: p.index.color, color: isLight(p.index.color) ? '#2b2a28' : '#fbf8f1' }}
-                      >
-                        {p.index.name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="ov-meta">
-                    <label className="ov-check" onPointerDown={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={on} onChange={() => toggle(p.id)} aria-label={`${i + 1}쪽 선택`} />
-                    </label>
-                    <span className="ov-no">{i + 1}쪽</span>
-                    {p.elements.length === 0 && <span className="ov-empty">빈 페이지</span>}
-                  </div>
-                </div>
-              )
-            })}
+    // 모달: 바깥(어두운 바탕)을 누르면 닫힌다
+    <div className="overview-backdrop" onPointerDown={(e) => e.target === e.currentTarget && !drag && onClose()}>
+      <div className="overview" role="dialog" aria-modal="true" aria-label="모든 페이지">
+        <header className="ov-head">
+          <div className="ov-title">
+            <h2>모든 페이지</h2>
+            <span className="muted">{pages.length}쪽 · 끌어서 순서 바꾸기</span>
           </div>
-        ))}
-      </div>
+          <div className="ov-actions">
+            <button className="btn ghost" onClick={() => setChecked(allChecked ? [] : pages.map((p) => p.id))}>
+              {allChecked ? '선택 해제' : '전체 선택'}
+            </button>
+            <button className="btn primary danger-fill" disabled={!live.length} onClick={() => setConfirm(true)}>
+              {live.length ? `${live.length}장 지우기` : '지우기'}
+            </button>
+            <button className="icon-btn" onClick={onClose} aria-label="닫기" title="닫기 (Esc)">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+        </header>
 
-      {dragging && drag && (
-        <div className="ov-ghost" style={{ left: drag.x, top: drag.y, aspectRatio: `${dragging.cols} / ${dragging.rows}` }}>
-          <PageThumb page={dragging} />
+        <div
+          className={'ov-grid' + (spread ? ' spread' : '')}
+          ref={gridRef}
+          onPointerMove={(e) => {
+            if (!drag) return
+            const moved = drag.moved || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6
+            setDrag({ ...drag, x: e.clientX, y: e.clientY, moved })
+            if (moved) setDropAt(targetIndex(e.clientX, e.clientY))
+          }}
+          onPointerUp={() => {
+            if (!drag) return
+            if (drag.moved && dropAt !== null) {
+              const from = pages.findIndex((p) => p.id === drag.id)
+              movePage(drag.id, dropAt > from ? dropAt - 1 : dropAt)
+            } else if (!drag.moved) {
+              goToPage(drag.id)
+              onClose()
+            }
+            setDrag(null)
+            setDropAt(null)
+          }}
+          onPointerCancel={() => {
+            setDrag(null)
+            setDropAt(null)
+          }}
+        >
+          {groups.map((g) => (
+            <div key={g.pages[0].id} className={'ov-group' + (g.start === curSpread ? ' current' : '')}>
+              {g.pages.map((p, k) => {
+                const i = g.start + k
+                const on = live.includes(p.id)
+                return (
+                  <div
+                    key={p.id}
+                    className={
+                      'ov-card' +
+                      (on ? ' checked' : '') +
+                      (drag?.moved && drag.id === p.id ? ' lifted' : '') +
+                      (dropAt === i ? ' drop-before' : '') +
+                      (dropAt === i + 1 && i === pages.length - 1 ? ' drop-after' : '')
+                    }
+                    data-index={i}
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse' && e.button !== 0) return
+                      if ((e.target as HTMLElement).closest('.ov-check')) return
+                      e.preventDefault()
+                      gridRef.current?.setPointerCapture?.(e.pointerId)
+                      setDrag({
+                        id: p.id,
+                        x: e.clientX,
+                        y: e.clientY,
+                        sx: e.clientX,
+                        sy: e.clientY,
+                        moved: false,
+                      })
+                    }}
+                  >
+                    <div className="ov-thumb" style={{ aspectRatio: `${p.cols} / ${p.rows}` }}>
+                      <PageThumb page={p} />
+                      {p.index && (
+                        <span
+                          className="ov-tab"
+                          style={{
+                            background: p.index.color,
+                            color: isLight(p.index.color) ? '#2b2a28' : '#fbf8f1',
+                          }}
+                        >
+                          {p.index.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="ov-meta">
+                      <label className="ov-check" onPointerDown={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={on} onChange={() => toggle(p.id)} aria-label={`${i + 1}쪽 선택`} />
+                      </label>
+                      <span className="ov-no">{i + 1}쪽</span>
+                      {p.elements.length === 0 && <span className="ov-empty">빈 페이지</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
         </div>
-      )}
 
-      {confirm && (
-        <DeletePageDialog
-          ids={live}
-          label={live.length === 1 ? `${pages.findIndex((p) => p.id === live[0]) + 1}쪽` : `고른 ${live.length}장`}
-          onClose={() => setConfirm(false)}
-        />
-      )}
+        {/* 끄는 미리보기는 body에: 모달 창이 뜨는 애니메이션(transform) 안에 있으면 마우스와 어긋난다 */}
+        {dragging &&
+          drag &&
+          createPortal(
+            <div className="ov-ghost" style={{ left: drag.x, top: drag.y, aspectRatio: `${dragging.cols} / ${dragging.rows}` }}>
+              <PageThumb page={dragging} />
+            </div>,
+            document.body,
+          )}
+
+        {confirm && (
+          <DeletePageDialog
+            ids={live}
+            label={live.length === 1 ? `${pages.findIndex((p) => p.id === live[0]) + 1}쪽` : `고른 ${live.length}장`}
+            onClose={() => setConfirm(false)}
+          />
+        )}
+      </div>
     </div>
   )
 }

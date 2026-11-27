@@ -23,15 +23,28 @@ export const COVERS = [
 
 /** 인덱스 스티커 색: 서비스 컬러웨이(마커 오렌지 + 스티커 색 + 잉크색) */
 export const STICKER_COLORS = [
-  { name: '마커 오렌지', color: '#ff6f1e' },
-  { name: '번트 시에나', color: '#ce500a' },
-  { name: '스카이', color: '#3b82f6' },
-  { name: '버블검', color: '#ff66cf' },
-  { name: '새싹', color: '#22c55e' },
-  { name: '듀드롭', color: '#f7efe9' },
-  { name: '코코아', color: '#2b1a07' },
-  { name: '차콜', color: '#171717' },
+  // 먼지 낀 파스텔: 회색이 살짝 섞여 크림 종이와 어울리는 차분한 색
+  { name: '로즈', color: '#d9a39b' },
+  { name: '살구', color: '#e6bd94' },
+  { name: '머스터드', color: '#d9c78f' },
+  { name: '세이지', color: '#a9c3a1' },
+  { name: '더스티 블루', color: '#a0bccc' },
+  { name: '라벤더', color: '#b9acca' },
+  { name: '오트', color: '#d3ccc1' },
+  { name: '스톤', color: '#7f7a74' },
 ]
+
+/** 예전 쨍한 스티커 색 → 비슷한 새 색 (불러올 때 바꿔 준다) */
+export const OLD_STICKER_COLORS: Record<string, string> = {
+  '#ff6f1e': '#e6bd94',
+  '#ce500a': '#d9a39b',
+  '#3b82f6': '#a0bccc',
+  '#ff66cf': '#d9a39b',
+  '#22c55e': '#a9c3a1',
+  '#f7efe9': '#d3ccc1',
+  '#2b1a07': '#7f7a74',
+  '#171717': '#7f7a74',
+}
 
 /** 형광펜 색 */
 export const HIGHLIGHT_COLORS = [

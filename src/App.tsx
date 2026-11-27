@@ -225,7 +225,8 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   // 페이지를 화면에 맞게. 격자 칸 수는 그대로, 칸 크기(px)만 바뀐다.
   // 가로 여백: 남은 종이 두께 + 오른쪽 인덱스 스티커 자리
   const narrow = desk.w < 600
-  const padW = 28 + (spread ? 30 : 18) + (narrow ? 14 : 56)
+  // 넓은 화면은 노트 양옆에 넘기기 버튼 자리(48px씩)도 비운다
+  const padW = 28 + (spread ? 30 : 18) + (narrow ? 14 : 56) + (narrow ? 0 : 96 + 44)
   const padH = 28 + 14
   const totalCols = shownPages.reduce((n, p) => n + p.cols, 0)
   const maxRows = Math.max(1, ...shownPages.map((p) => p.rows))
@@ -282,6 +283,14 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const selBarPage = shownPages.find((p) => p.elements.some((e) => selection.includes(e.id)))?.id
 
   const light = isLight(notebook.cover)
+  const atStart = (spread ? start : pageIndex) <= 0
+  // 넘기기 버튼의 은은한 빛이 마우스를 따라오게 (버튼 안 위치를 CSS 변수로)
+  const followGlow = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    e.currentTarget.style.setProperty('--gx', `${e.clientX - r.left}px`)
+    e.currentTarget.style.setProperty('--gy', `${e.clientY - r.top}px`)
+  }
+  const atEnd = (spread ? start + 2 : pageIndex + 1) >= pageCount
 
   return (
     <div className={'app' + (fromCover ? ' from-cover' : '')} style={{ ['--cover' as string]: notebook.cover, ['--cover-ink' as string]: light ? '#2b2a28' : '#f6f1e7' }}>
@@ -366,6 +375,21 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
 
       <main className="workspace">
         <div className="desk" ref={deskRef}>
+          {page && desk.w > 0 && !narrow && (
+            // 노트 바깥 왼쪽: 앞으로 넘기기 (첫 페이지면 자리만 차지하고 숨김)
+            <button
+              className="turn-btn prev"
+              onPointerMove={followGlow}
+              // 오른쪽은 노트와 버튼 사이에 인덱스 스티커 자리(44px)가 있어서, 왼쪽도 같은 만큼 띄워 양쪽 여백을 맞춘다
+              style={{ visibility: atStart ? 'hidden' : undefined, marginRight: 50 }}
+              onClick={() => goRelative(-1)}
+              {...tip(spread ? '이전 펼침면' : '이전 페이지', undefined, 'prevPage')}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 5l-7 7 7 7" />
+              </svg>
+            </button>
+          )}
           {page && desk.w > 0 && (
             <div ref={nbRef} className={'notebook' + (spread ? ' spread' : '')} style={{ marginRight: narrow ? 12 : 44 }}>
               {shownPages.map((p, i) => (
@@ -386,6 +410,27 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
                 onOpenList={() => setIndexListOpen(true)}
               />
             </div>
+          )}
+          {page && desk.w > 0 && !narrow && (
+            // 노트 바깥 오른쪽: 다음으로 넘기기. 마지막이면 새 펼침면을 만들어 바로 넘어간다
+            <button
+              className={'turn-btn next' + (atEnd ? ' add' : '')}
+              onPointerMove={followGlow}
+              onClick={() => (atEnd ? addPage() : goRelative(1))}
+              {...(atEnd
+                ? tip(spread ? '새 펼침면' : '새 페이지', '마지막 페이지예요. 눌러서 새로 이어 쓰기', 'newPage')
+                : tip(spread ? '다음 펼침면' : '다음 페이지', undefined, 'nextPage'))}
+            >
+              {atEnd ? (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M12 6v12M6 12h12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
           )}
         </div>
         <Toolbar />
