@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
 import { STICKER_COLORS, isLight, type Page } from '../types'
+import { ModalClose } from './ModalClose'
 
 const STEP = 27 // 탭 하나의 세로 간격(px)
 const TOP = 18
@@ -19,19 +20,19 @@ const flagStyle = (color: string) =>
  * 노트 오른쪽 가장자리에 붙은 인덱스 스티커들. 실제 노트처럼 페이지 순서대로 위에서부터 붙는다.
  * 누르면 이동, 우클릭·길게 누르면 수정. 순서는 모든 페이지 모아보기에서 페이지를 옮기면 따라 바뀐다.
  */
-export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
+export function IndexTabs({ shownIds, narrow, onEdit }: {
   shownIds: string[]
   narrow: boolean
   onEdit: (pageId: string) => void
-  onOpenList: () => void
 }) {
   const pages = useStore((s) => s.pages)
   const currentId = useStore((s) => s.currentPageId)
   const tabs = pages.filter((p) => p.index)
   const longPress = useRef<number | undefined>(undefined)
   const pressed = useRef<string | null>(null)
-  // 맨 아래 회색 + 스티커: 지금 펼친 페이지 중 아직 스티커가 없는 곳(지금 페이지 먼저)에 붙이기
-  const addFor = [currentId, ...shownIds].find((id) => id && shownIds.includes(id) && !pages.find((p) => p.id === id)?.index) ?? null
+  // 맨 아래 회색 + 스티커: 지금 펼친 면(한 장 또는 양쪽)에 아직 인덱스가 하나도 없을 때만. 붙이면 지금 페이지에
+  const shownHasIndex = shownIds.some((id) => pages.find((p) => p.id === id)?.index)
+  const addFor = shownHasIndex ? null : currentId && shownIds.includes(currentId) ? currentId : (shownIds[0] ?? null)
 
   return (
     <div className={'index-tabs' + (narrow ? ' narrow' : '')}>
@@ -41,9 +42,9 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
         return (
           <button
             key={p.id}
-            className={'index-tab' + (current ? ' current' : '')}
+            className={'index-tab' + (current ? ' current' : '') + (tab.name ? '' : ' empty')}
             style={{ top: TOP + slot * STEP, ...flagStyle(tab.color), transform: `rotate(${tilt(p.id)}deg)` }}
-            title={tab.name || `${pages.findIndex((x) => x.id === p.id) + 1}쪽`}
+            title={(tab.name || `${pages.findIndex((x) => x.id === p.id) + 1}쪽`) + (current ? ' · 눌러서 수정' : ' · 눌러서 이동')}
             onPointerDown={(e) => {
               if (e.pointerType === 'mouse' && e.button !== 0) return
               pressed.current = p.id
@@ -59,7 +60,8 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
               window.clearTimeout(longPress.current)
               if (pressed.current !== p.id) return
               pressed.current = null
-              if (narrow) onOpenList()
+              // 지금 펼친 페이지의 스티커를 누르면 수정, 다른 페이지 스티커면 그 페이지로 (한 번 더 누르면 수정)
+              if (current) onEdit(p.id)
               else useStore.getState().goToPage(p.id)
             }}
             onPointerCancel={() => {
@@ -113,6 +115,7 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
         }}
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
       >
+        <ModalClose onClose={onClose} />
         <h2>{page.index ? '인덱스 수정' : '인덱스 붙이기'}</h2>
         <p className="hint">{pageNo}쪽에 붙어요. 어느 페이지에서든 노트 오른쪽 가장자리에서 눌러 바로 이동해요.</p>
         <div className="index-preview">
@@ -163,47 +166,6 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
           </button>
         </div>
       </form>
-    </div>
-  )
-}
-
-/** 모바일: 인덱스 목록 */
-export function IndexList({ onClose, onAdd }: { onClose: () => void; onAdd: () => void }) {
-  const pages = useStore((s) => s.pages)
-  const hasIndex = useStore((s) => !!s.pages.find((p) => p.id === s.currentPageId)?.index)
-  const tabs = pages
-    .map((p, i) => ({ p, no: i + 1 }))
-    .filter(({ p }) => p.index)
-  return (
-    <div className="modal-backdrop sheet" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal small" role="dialog" aria-label="인덱스">
-        <h2>인덱스</h2>
-        {tabs.length === 0 && <p className="hint">아직 붙인 인덱스가 없어요.</p>}
-        <ul className="index-list">
-          {tabs.map(({ p, no }) => (
-            <li key={p.id}>
-              <button
-                onClick={() => {
-                  useStore.getState().goToPage(p.id)
-                  onClose()
-                }}
-              >
-                <span className="index-chip" style={{ background: p.index!.color }} />
-                <span className="index-list-name">{p.index!.name || <span className="muted">이름 없음</span>}</span>
-                <span className="muted">{no}쪽</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="form-actions">
-          <button type="button" className="btn ghost" onClick={onClose}>
-            닫기
-          </button>
-          <button type="button" className="btn primary" onClick={onAdd}>
-            {hasIndex ? '이 페이지 인덱스 수정' : '이 페이지에 붙이기'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

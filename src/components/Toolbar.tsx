@@ -305,7 +305,7 @@ export default function Toolbar() {
           </svg>
         </button>
         <button
-          className={'tool full-only' + (showGuides ? ' on' : '')}
+          className={'tool' + (showGuides ? ' on' : '')}
           onClick={() => setShowGuides(!showGuides)}
           {...tip('분할 그리드', '종이 가장자리에 ½ ⅓ ⅔ 지점 표시', 'guides')}
           aria-pressed={showGuides}

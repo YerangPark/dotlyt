@@ -73,17 +73,18 @@ export default function NotebookForm({ initial, submitLabel, onSubmit, onCancel 
       className="nb-form"
       onSubmit={(e) => {
         e.preventDefault()
-        onSubmit({ name: name.trim() || '나의 노트', size, cover })
+        // 이름은 비워 둬도 된다 (표지에 제목 없이)
+        onSubmit({ name: name.trim(), size, cover })
       }}
     >
       <div className="nb-preview-wrap">
-        <Notebook3D cover={cover} light={light} title={name || '나의 노트'} year={year} ratio={s.cols / s.rows} />
+        <Notebook3D cover={cover} light={light} title={name} year={year} ratio={s.cols / s.rows} />
       </div>
 
       <div className="nb-fields">
         <label className="field">
           <span>노트 이름</span>
-          <input value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />
+          <input value={name} maxLength={30} placeholder="비워 두면 이름 없는 노트" onChange={(e) => setName(e.target.value)} />
         </label>
 
         <fieldset className="field">

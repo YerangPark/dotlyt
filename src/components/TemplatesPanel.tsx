@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { PageThumb } from './PagesOverview'
+import { ModalClose } from './ModalClose'
 
 /**
  * 템플릿: 지금 페이지(펼침면)를 이름 붙여 저장하고, 나중에 새 페이지로 추가하거나 지금 페이지에 넣는다.
@@ -40,6 +41,7 @@ export function TemplatesPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal templates" role="dialog" aria-label="템플릿">
+        <ModalClose onClose={onClose} />
         <h2>템플릿</h2>
 
         <form

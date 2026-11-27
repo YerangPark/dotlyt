@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { SHORTCUTS, type Shortcut } from '../shortcuts'
+import { ModalClose } from './ModalClose'
 
 const GROUPS: Shortcut['group'][] = ['도구', '글자', '편집', '페이지', '기타']
 
 /** 단축키 목록 (? 키) */
-export function ShortcutHelp({ onClose }: { onClose: () => void }) {
+export function ShortcutHelp({ onClose, onGuide }: { onClose: () => void; onGuide?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === '?') {
@@ -19,6 +20,7 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal shortcut-help" role="dialog" aria-label="단축키">
+        <ModalClose onClose={onClose} />
         <h2>단축키</h2>
         <p className="muted shortcut-note">글자 키는 글자를 쓰고 있지 않을 때 돼요. 한글 자판이어도 돼요.</p>
         <div className="shortcut-cols">
@@ -39,6 +41,11 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <div className="form-actions">
+          {onGuide && (
+            <button className="btn ghost" onClick={onGuide}>
+              사용 안내 다시 보기
+            </button>
+          )}
           <button className="btn primary" onClick={onClose}>
             닫기
           </button>

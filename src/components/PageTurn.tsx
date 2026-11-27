@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Page } from '../types'
 import { PageThumb } from './PagesOverview'
+import { stackPx } from './PageView'
 import { useStore } from '../store'
 
 export interface Turn {
@@ -12,6 +13,8 @@ export interface Turn {
   /** 넘긴 뒤 보이는 페이지 */
   to: Page[]
   spread: boolean
+  /** 한 장씩 볼 때 같은 펼침면의 왼쪽 ↔ 오른쪽: 넘기지 않고 옆으로 민다 */
+  slide?: boolean
 }
 
 type R = { left: number; top: number; width: number; height: number }
@@ -88,10 +91,54 @@ export function PageTurn({ turn, host, onDone }: { turn: Turn; host: HTMLElement
   // 한 장씩 보기
   const S = slots[0]
   const next = turn.dir === 1
+  // 왼쪽 페이지(짝수 번째)·오른쪽 페이지 모양에 맞는 그늘
+  const sideOf = (p: Page) => (pages.findIndex((x) => x.id === p.id) % 2 === 0 ? 'pg-left' : 'pg-right')
+  if (turn.slide) {
+    // 같은 펼침면 안: 책 자체가 옆으로 밀린다. 표지 판 | 왼쪽 쪽 | 오른쪽 쪽 | 표지 판 을 한 줄로 붙인 펼침면이
+    // 노트 모양 창 뒤에서 움직여서, 다음이면 오른쪽 쪽이 들어오고 이전이면 왼쪽 쪽이 들어온다.
+    const board = 16
+    const W = host.offsetWidth
+    const H = host.offsetHeight
+    const leftPage = next ? turn.from[0] : turn.to[0]
+    const rightPage = next ? turn.to[0] : turn.from[0]
+    const showRight = -(board + S.width) // 오른쪽 쪽이 보일 때 줄의 위치
+    // 바깥쪽 종이 단면(남은 페이지만큼)도 같이 밀려야 사라졌다 생기지 않는다
+    const idxOf = (p: Page) => pages.findIndex((x) => x.id === p.id)
+    const sL = stackPx('left', idxOf(leftPage), pages.length)
+    const sR = stackPx('right', idxOf(rightPage), pages.length)
+    const bottom = S.top + S.height
+    return createPortal(
+      <div className="page-turn book-pan" style={{ left: 0, top: 0, width: W, height: H }} aria-hidden>
+        <div
+          className="pan-strip"
+          style={
+            {
+              width: board * 2 + S.width * 2,
+              height: H,
+              ['--from' as string]: `${next ? 0 : showRight}px`,
+              ['--to' as string]: `${next ? showRight : 0}px`,
+            } as React.CSSProperties
+          }
+          onAnimationEnd={(e) => e.target === e.currentTarget && onDone()}
+        >
+          <div className="pan-stack side" style={{ left: board - sL, top: S.top + 3, width: sL, height: S.height - 3 }} />
+          <div className="pan-stack side" style={{ left: board + S.width * 2, top: S.top + 3, width: sR, height: S.height - 3 }} />
+          <div className="pan-stack bottom" style={{ left: board - sL, top: bottom, width: S.width * 2 + sL + sR, height: 10 }} />
+          <div className="pan-page pg-left" style={{ left: board, top: S.top, width: S.width, height: S.height }}>
+            {thumb(leftPage)}
+          </div>
+          <div className="pan-page pg-right" style={{ left: board + S.width, top: S.top, width: S.width, height: S.height }}>
+            {thumb(rightPage)}
+          </div>
+        </div>
+      </div>,
+      host,
+    )
+  }
   return createPortal(
     <div className="page-turn" style={{ left: S.left, top: S.top, width: S.width, height: S.height }} aria-hidden>
       {!next && (
-        <div className="turn-under pg-single" style={{ left: 0, top: 0, width: S.width, height: S.height }}>
+        <div className={'turn-under ' + sideOf(turn.from[0])} style={{ left: 0, top: 0, width: S.width, height: S.height }}>
           {thumb(turn.from[0])}
         </div>
       )}
@@ -100,7 +147,7 @@ export function PageTurn({ turn, host, onDone }: { turn: Turn; host: HTMLElement
         style={{ left: 0, top: 0, width: S.width, height: S.height }}
         onAnimationEnd={(e) => e.target === e.currentTarget && onDone()}
       >
-        <div className="turn-face front pg-single">{thumb(next ? turn.from[0] : turn.to[0])}</div>
+        <div className={'turn-face front ' + sideOf(next ? turn.from[0] : turn.to[0])}>{thumb(next ? turn.from[0] : turn.to[0])}</div>
       </div>
     </div>,
     host,

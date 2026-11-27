@@ -36,7 +36,9 @@ export function highlighterCursor(color: string | null): string {
   return cur
 }
 
-export const ERASER_CURSOR = svgCursor(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(45 16 16)"><rect x="10" y="4" width="12" height="22" rx="2.5" fill="#f3f0ea" stroke="#3a3328" stroke-width="1.3"/><rect x="10" y="4" width="12" height="9" rx="2.5" fill="#6f8fb8" stroke="#3a3328" stroke-width="1.3"/></g></svg>`,
-  'cell',
-)
+/**
+ * 지우개 커서: 흰 고무 끝(짧게) + 분홍빛 빨간 띠(길게). 커서 기준점은 흰 끝 면의 가운데 = 실제로 지워지는 자리
+ */
+export const ERASER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(-45 16 16)"><rect x="6" y="11" width="22" height="10" rx="2" fill="#f2b6ae" stroke="#2b2a28" stroke-width="1.3"/><path d="M8 11h4v10H8a2 2 0 01-2-2v-6a2 2 0 012-2z" fill="#fff" stroke="#2b2a28" stroke-width="1.3" stroke-linejoin="round"/></g></svg>`,
+)}") 9 23, cell`
