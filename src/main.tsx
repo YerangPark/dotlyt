@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { FONTS } from './fonts'
 import { resetMeasureCache } from './geometry'
 import { persist, useStore } from './store'
 import './styles.css'
@@ -17,11 +18,15 @@ window.addEventListener('pagehide', () => {
   if (useStore.getState().saveStatus === 'saving') persist()
 })
 
-// 글꼴이 늦게 로드되면 글자 폭을 다시 잰다
-document.fonts?.load('16px "Gowun Dodum"', '가A').finally(() => {
+// 글씨체가 늦게 로드되면 글자 폭을 다시 잰다 (한글 글씨체는 쓰는 글자에 따라 조금씩 더 불러온다)
+const remeasure = () => {
   resetMeasureCache()
   useStore.setState((s) => ({ fontsVersion: s.fontsVersion + 1 }))
-})
+}
+if (document.fonts) {
+  Promise.allSettled(FONTS.filter((f) => !f.lazy).map((f) => document.fonts.load(`16px "${f.load}"`, '가A1'))).then(remeasure)
+  document.fonts.addEventListener('loadingdone', remeasure)
+}
 
 if (import.meta.env.DEV) (window as unknown as { __dotlyt: typeof useStore }).__dotlyt = useStore
 

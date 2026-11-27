@@ -1,11 +1,24 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store'
-import { COVERS, isLight, type Page } from '../types'
+import { STICKER_COLORS, isLight, type Page } from '../types'
 
-const STEP = 34 // 탭 하나의 세로 간격(px)
-const TOP = 16
+const STEP = 27 // 탭 하나의 세로 간격(px)
+const TOP = 18
 
-/** 노트 오른쪽 가장자리에 붙은 인덱스 스티커들. 누르면 이동, 끌면 순서 바꾸기, 우클릭·길게 누르면 수정. */
+/** 손으로 붙인 듯 살짝 비뚤게: 페이지 id로 고정되는 -1.2° ~ 1.2° */
+function tilt(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return ((Math.abs(h) % 25) - 12) / 10
+}
+
+const flagStyle = (color: string) =>
+  ({ ['--c' as string]: color, color: isLight(color) ? '#2b2a28' : '#fbf8f1' }) as React.CSSProperties
+
+/**
+ * 노트 오른쪽 가장자리에 붙은 인덱스 스티커들. 실제 노트처럼 페이지 순서대로 위에서부터 붙는다.
+ * 누르면 이동, 우클릭·길게 누르면 수정. 순서는 모든 페이지 모아보기에서 페이지를 옮기면 따라 바뀐다.
+ */
 export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
   shownIds: string[]
   narrow: boolean
@@ -13,72 +26,44 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
   onOpenList: () => void
 }) {
   const pages = useStore((s) => s.pages)
-  const tabs = pages.filter((p) => p.index).sort((a, b) => a.index!.order - b.index!.order)
-  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; moved: boolean } | null>(null)
+  const tabs = pages.filter((p) => p.index)
   const longPress = useRef<number | undefined>(undefined)
+  const pressed = useRef<string | null>(null)
 
   if (!tabs.length) return null
 
-  const targetIndex = (from: number, dy: number) => Math.max(0, Math.min(tabs.length - 1, Math.round(from + dy / STEP)))
-
-  // 끄는 중이면 나머지 탭이 자리를 비켜준다
-  const order = tabs.map((t) => t.id)
-  if (drag?.moved) {
-    const from = order.indexOf(drag.id)
-    const to = targetIndex(from, drag.dy)
-    order.splice(from, 1)
-    order.splice(to, 0, drag.id)
-  }
-
   return (
     <div className={'index-tabs' + (narrow ? ' narrow' : '')}>
-      {tabs.map((p) => {
+      {tabs.map((p, slot) => {
         const tab = p.index!
-        const isDragging = drag?.id === p.id && drag.moved
-        const slot = isDragging ? tabs.findIndex((t) => t.id === p.id) : order.indexOf(p.id)
-        const top = TOP + slot * STEP + (isDragging ? drag!.dy : 0)
         const current = shownIds.includes(p.id)
         return (
           <button
             key={p.id}
-            className={'index-tab' + (current ? ' current' : '') + (isDragging ? ' dragging' : '')}
-            style={{ top, background: tab.color, color: isLight(tab.color) ? '#2b2a28' : '#f6f1e7' }}
+            className={'index-tab' + (current ? ' current' : '')}
+            style={{ top: TOP + slot * STEP, ...flagStyle(tab.color), transform: `rotate(${tilt(p.id)}deg)` }}
             title={tab.name}
             onPointerDown={(e) => {
               if (e.pointerType === 'mouse' && e.button !== 0) return
-              ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
-              setDrag({ id: p.id, startY: e.clientY, dy: 0, moved: false })
+              pressed.current = p.id
               window.clearTimeout(longPress.current)
               if (e.pointerType !== 'mouse') {
                 longPress.current = window.setTimeout(() => {
-                  setDrag(null)
+                  pressed.current = null
                   onEdit(p.id)
                 }, 550)
               }
             }}
-            onPointerMove={(e) => {
-              if (!drag || drag.id !== p.id) return
-              const dy = e.clientY - drag.startY
-              if (!drag.moved && Math.abs(dy) < 5) return
-              window.clearTimeout(longPress.current)
-              setDrag({ ...drag, dy, moved: true })
-            }}
             onPointerUp={() => {
               window.clearTimeout(longPress.current)
-              const d = drag
-              setDrag(null)
-              if (!d || d.id !== p.id) return
-              if (d.moved) {
-                useStore.getState().reorderIndex(order)
-              } else if (narrow) {
-                onOpenList()
-              } else {
-                useStore.getState().goToPage(p.id)
-              }
+              if (pressed.current !== p.id) return
+              pressed.current = null
+              if (narrow) onOpenList()
+              else useStore.getState().goToPage(p.id)
             }}
             onPointerCancel={() => {
               window.clearTimeout(longPress.current)
-              setDrag(null)
+              pressed.current = null
             }}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -95,12 +80,10 @@ export function IndexTabs({ shownIds, narrow, onEdit, onOpenList }: {
 
 /** 인덱스 붙이기 / 수정 / 떼기 */
 export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void }) {
-  const cover = useStore((s) => s.notebook?.cover ?? COVERS[0].color)
   const setIndex = useStore((s) => s.setIndex)
   const [name, setName] = useState(page.index?.name ?? '')
-  const [color, setColor] = useState(page.index?.color ?? cover)
+  const [color, setColor] = useState(page.index?.color ?? STICKER_COLORS[0].color)
   const pageNo = useStore((s) => s.pages.findIndex((p) => p.id === page.id) + 1)
-  const ink = isLight(color) ? '#2b2a28' : '#f6f1e7'
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -119,7 +102,7 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
         <h2>{page.index ? '인덱스 수정' : '인덱스 붙이기'}</h2>
         <p className="hint">{pageNo}쪽에 붙어요. 어느 페이지에서든 노트 오른쪽 가장자리에서 눌러 바로 이동해요.</p>
         <div className="index-preview">
-          <span className="index-tab current preview" style={{ background: color, color: ink }}>
+          <span className="index-tab current preview" style={flagStyle(color)}>
             <span className="index-tab-name">{name || '이름'}</span>
           </span>
         </div>
@@ -130,7 +113,7 @@ export function IndexEditor({ page, onClose }: { page: Page; onClose: () => void
         <fieldset className="field">
           <legend>색</legend>
           <div className="cover-row">
-            {COVERS.map((c) => (
+            {STICKER_COLORS.map((c) => (
               <button
                 type="button"
                 key={c.color}
@@ -177,7 +160,6 @@ export function IndexList({ onClose, onAdd }: { onClose: () => void; onAdd: () =
   const tabs = pages
     .map((p, i) => ({ p, no: i + 1 }))
     .filter(({ p }) => p.index)
-    .sort((a, b) => a.p.index!.order - b.p.index!.order)
   return (
     <div className="modal-backdrop sheet" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal small" role="dialog" aria-label="인덱스">

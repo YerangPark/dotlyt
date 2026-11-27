@@ -1,5 +1,6 @@
 import { currentPage, useStore } from '../store'
-import { INK_COLORS, type PenType } from '../types'
+import { TextStyleButton } from './TextStylePanel'
+import { HIGHLIGHT_COLORS, INK_COLORS, type PenType } from '../types'
 
 const PEN_LABEL: Record<PenType, string> = { ballpoint: '볼펜', pencil: '연필' }
 
@@ -52,6 +53,10 @@ export default function Toolbar() {
   const setShowGuides = useStore((s) => s.setShowGuides)
   const hasSelection = useStore((s) => s.selection.length > 0)
   const eraserMode = useStore((s) => s.eraserMode)
+  const highlightMode = useStore((s) => s.highlightMode)
+  const setHighlightMode = useStore((s) => s.setHighlightMode)
+  const hlColor = useStore((s) => s.hlColor)
+  const setHlColor = useStore((s) => s.setHlColor)
   const setEraserMode = useStore((s) => s.setEraserMode)
   const hasCursor = useStore((s) => !!s.cursor)
   const popupOpen = useStore((s) => s.popup?.kind === 'insert')
@@ -93,16 +98,30 @@ export default function Toolbar() {
         >
           <StrokeIcon width={1} dash />
         </button>
-        <button
-          className="tool"
-          onClick={() => {
-            const i = INK_COLORS.findIndex((c) => c.color === lineStyle.color)
-            setLineStyle({ color: INK_COLORS[(i + 1) % INK_COLORS.length].color })
-          }}
-          title="선 색 (누르면 다음 색)"
-        >
-          <span className="ink-dot" style={{ background: lineStyle.color }} />
-        </button>
+        {highlightMode ? (
+          <button
+            className="tool"
+            onClick={() => {
+              // 형광펜 색 → … → 지우기 순서로
+              const opts = [...HIGHLIGHT_COLORS.map((c) => c.color), null]
+              setHlColor(opts[(opts.indexOf(hlColor) + 1) % opts.length])
+            }}
+            title="형광펜 색 (누르면 다음 색, 마지막은 지우기)"
+          >
+            {hlColor ? <span className="ink-dot hl" style={{ background: hlColor }} /> : <span className="ink-dot hl-none" />}
+          </button>
+        ) : (
+          <button
+            className="tool"
+            onClick={() => {
+              const i = INK_COLORS.findIndex((c) => c.color === lineStyle.color)
+              setLineStyle({ color: INK_COLORS[(i + 1) % INK_COLORS.length].color })
+            }}
+            title="선 색 (누르면 다음 색)"
+          >
+            <span className="ink-dot" style={{ background: lineStyle.color }} />
+          </button>
+        )}
       </div>
 
       <div className="tool-group full-only" role="group" aria-label="펜 종류">
@@ -141,6 +160,31 @@ export default function Toolbar() {
         </button>
       </div>
 
+      {highlightMode ? (
+        <div className="tool-group full-only" role="group" aria-label="형광펜 색">
+          {HIGHLIGHT_COLORS.map((c) => (
+            <button
+              key={c.color}
+              className={'tool color' + (hlColor === c.color ? ' on' : '')}
+              onClick={() => setHlColor(c.color)}
+              title={'형광펜 ' + c.name}
+              aria-label={'형광펜 ' + c.name}
+              aria-pressed={hlColor === c.color}
+            >
+              <span className="ink-dot hl" style={{ background: c.color }} />
+            </button>
+          ))}
+          <button
+            className={'tool color' + (hlColor === null ? ' on' : '')}
+            onClick={() => setHlColor(null)}
+            title="칠한 칸 지우기"
+            aria-label="칠한 칸 지우기"
+            aria-pressed={hlColor === null}
+          >
+            <span className="ink-dot hl-none" />
+          </button>
+        </div>
+      ) : (
       <div className="tool-group full-only" role="group" aria-label="선 색">
         {INK_COLORS.map((c) => (
           <button
@@ -155,10 +199,12 @@ export default function Toolbar() {
           </button>
         ))}
       </div>
+      )}
 
       <div className="tool-group">
+        <TextStyleButton />
         <button
-          className={'tool bold-btn' + (textBold ? ' on' : '')}
+          className={'tool bold-btn full-only' + (textBold ? ' on' : '')}
           onClick={toggleBold}
           title="굵게 (⌘B) — 쓰고 있는 글자나 고른 글자에 적용"
           aria-pressed={textBold}
@@ -193,6 +239,18 @@ export default function Toolbar() {
           </svg>
         </button>
         <button
+          className={'tool' + (highlightMode ? ' on' : '')}
+          onClick={() => setHighlightMode(!highlightMode)}
+          title="형광펜: 칸 위를 문지르면 색이 칠해져요"
+          aria-pressed={highlightMode}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
+            <path d="M14.5 4.5l5 5-7.5 7.5h-3l-2-2v-3z" />
+            <path d="M7 14.5L4.5 17l2.5 2.5L9.5 17" />
+            <path d="M13 20.5h7.5" stroke={hlColor ?? 'currentColor'} strokeWidth="3" opacity="0.7" />
+          </svg>
+        </button>
+        <button
           className={'tool' + (eraserMode ? ' on' : '')}
           onClick={() => setEraserMode(!eraserMode)}
           title="지우개: 문지르면 닿은 것을 지워요"
@@ -210,7 +268,7 @@ export default function Toolbar() {
           </svg>
         </button>
         <button
-          className={'tool' + (showGuides ? ' on' : '')}
+          className={'tool full-only' + (showGuides ? ' on' : '')}
           onClick={() => setShowGuides(!showGuides)}
           title="분할 그리드 보기 (½, ⅓, ⅔)"
           aria-pressed={showGuides}
