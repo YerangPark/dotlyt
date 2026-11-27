@@ -159,6 +159,9 @@ export function CoverScreen({ onOpen, closing = false, autoOpen = false }: { onO
       <footer className="cover-band">
         <span className="band-brand">Dotlyt</span>
         <span className="band-copy">점 위에 하루를 적는 노트</span>
+        <a className="band-link" href="/privacy">
+          개인정보처리방침
+        </a>
       </footer>
     </div>
   )

@@ -86,6 +86,13 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
               </form>
             )}
             {err && <p className="account-err">{err}</p>}
+            <p className="account-privacy">
+              로그인하면{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer">
+                개인정보처리방침
+              </a>
+              에 동의하는 것으로 봐요.
+            </p>
           </>
         )}
       </div>

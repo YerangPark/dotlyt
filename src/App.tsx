@@ -69,6 +69,9 @@ export default function App() {
             )}
           </p>
         )}
+        <a className="setup-privacy" href="/privacy">
+          개인정보처리방침
+        </a>
         {accountOpen && <AccountDialog onClose={() => setAccountOpen(false)} />}
       </div>
     )

@@ -4184,3 +4184,32 @@ h3 {
   text-underline-offset: 3px;
   cursor: pointer;
 }
+.band-link {
+  margin-left: auto;
+  color: inherit;
+  opacity: 0.7;
+  font-size: 12px;
+  text-decoration: none;
+}
+.band-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-privacy {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.account-privacy a,
+.setup-privacy {
+  color: var(--muted);
+  text-underline-offset: 3px;
+}
+.setup-privacy {
+  display: block;
+  margin: 8px auto 0;
+  width: fit-content;
+  font-size: 12px;
+}

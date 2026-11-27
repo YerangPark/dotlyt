@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>개인정보처리방침 · Dotlyt</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <style>
+      :root {
+        --ink: #2b2a28;
+        --muted: #7a746b;
+        --line: #ece8e3;
+        --paper: #fbf8f1;
+        --dot: #d8d1c4;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+        background-size: 22px 22px;
+        color: var(--ink);
+        font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+        line-height: 1.75;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 680px;
+        margin: 48px auto;
+        padding: 40px 44px 44px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+      }
+      @media (max-width: 720px) {
+        main { margin: 0; border: 0; border-radius: 0; padding: 32px 20px 40px; min-height: 100vh; }
+      }
+      .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 15px; }
+      .brand img { width: 22px; height: 22px; }
+      h1 { margin: 28px 0 4px; font-size: 26px; letter-spacing: -0.02em; }
+      .date { margin: 0 0 28px; color: var(--muted); font-size: 13px; }
+      h2 { margin: 32px 0 8px; font-size: 16px; }
+      p, li { font-size: 14.5px; }
+      ul { padding-left: 20px; margin: 6px 0; }
+      table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13.5px; }
+      th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+      .lead { padding: 14px 16px; background: #f6f4f0; border-radius: 10px; font-size: 14px; }
+      a { color: var(--ink); text-underline-offset: 3px; }
+      footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/"><img src="/icons/dotlyt-icon.svg" alt="" />Dotlyt</a>
+      <h1>개인정보처리방침</h1>
+      <p class="date">시행일: 2026년 11월 27일</p>
+
+      <p class="lead">
+        Dotlyt은 점 위에 하루를 적는 무료 웹 다이어리예요. 로그인하지 않으면 어떤 개인정보도 저희 서버로 보내지 않아요. 로그인하면 여러 기기에서 같은 노트를 쓰도록 필요한 만큼만 저장해요.
+      </p>
+
+      <h2>1. 수집하는 정보와 쓰는 곳</h2>
+      <table>
+        <tr><th>로그인하지 않을 때</th><td>노트 내용과 설정은 쓰고 있는 브라우저(기기) 안에만 저장돼요. 저희 서버로 보내지 않아요.</td></tr>
+        <tr><th>로그인할 때</th><td>이메일 주소, 로그인 방식(구글 또는 이메일 링크), 구글 로그인 시 이름과 프로필 사진 주소. 본인 확인과 계정 구분에만 써요.</td></tr>
+        <tr><th>로그인 후 노트</th><td>노트 이름, 크기, 표지 색, 페이지에 쓴 글자·선·기호·형광펜·인덱스 스티커, 마지막으로 고친 시각. 여러 기기에서 같은 노트를 이어서 쓰게 하는 데만 써요.</td></tr>
+        <tr><th>자동으로 남는 것</th><td>서비스를 운영하는 곳(아래 3번)이 보안과 오류 확인을 위해 접속 기록(IP 주소, 접속 시각 등)을 남길 수 있어요.</td></tr>
+      </table>
+      <p>광고, 마케팅, 다른 회사에 파는 데에는 쓰지 않아요. 노트 내용은 본인만 볼 수 있도록 계정별로 막혀 있어요.</p>
+
+      <h2>2. 보관 기간과 지우기</h2>
+      <ul>
+        <li>로그인해서 저장한 정보는 계정을 지울 때까지 보관해요.</li>
+        <li>계정과 노트를 지우고 싶으면 아래 문의처로 알려 주세요. 확인 후 지체 없이 지워요.</li>
+        <li>브라우저에만 저장된 노트는 브라우저의 사이트 데이터를 지우면 함께 사라져요.</li>
+      </ul>
+
+      <h2>3. 처리를 맡기는 곳</h2>
+      <table>
+        <tr><th>Supabase</th><td>로그인 처리, 계정과 노트 저장 (서버 위치: 대한민국 서울)</td></tr>
+        <tr><th>Google</th><td>구글 계정으로 로그인할 때 본인 확인</td></tr>
+        <tr><th>Vercel</th><td>웹사이트 호스팅 (접속 기록이 해외 서버에서 처리될 수 있어요)</td></tr>
+      </table>
+
+      <h2>4. 이용자의 권리</h2>
+      <p>언제든지 저장된 내 정보를 보거나, 고치거나, 지우거나, 처리를 멈춰 달라고 요청할 수 있어요. 아래 문의처로 알려 주시면 바로 처리할게요.</p>
+
+      <h2>5. 쿠키와 브라우저 저장</h2>
+      <p>노트와 설정, 로그인 상태를 기억하려고 브라우저 저장소(localStorage)를 써요. 광고나 추적용 쿠키는 쓰지 않아요.</p>
+
+      <h2>6. 만 14세 미만</h2>
+      <p>만 14세 미만은 보호자의 동의 없이 로그인 기능을 쓰지 않도록 해 주세요.</p>
+
+      <h2>7. 문의처</h2>
+      <p>개인정보 관련 문의와 삭제 요청: <span id="contact">메일 주소를 보려면 자바스크립트를 켜 주세요</span></p>
+
+      <h2>8. 바뀔 때</h2>
+      <p>이 방침이 바뀌면 이 페이지에 시행일과 함께 알려요.</p>
+
+      <footer><a href="/">Dotlyt으로 돌아가기</a></footer>
+    </main>
+    <script>
+      // 스팸 수집을 막으려고 주소를 나눠 두었다가 화면에서만 합친다
+      ;(function () {
+        var u = 'buuu' + 'ung', d = 'naver' + '.com'
+        var el = document.getElementById('contact')
+        if (u.indexOf('__') === 0) return
+        var a = document.createElement('a')
+        a.href = 'mai' + 'lto:' + u + '@' + d
+        a.textContent = u + '@' + d
+        el.textContent = ''
+        el.appendChild(a)
+      })()
+    </script>
+  </body>
+</html>
