@@ -293,6 +293,9 @@ interface State extends Persisted {
   addLinePieces: (pieces: { pageId: string; a: Pt; b: Pt; id?: string }[]) => void
   crossPreview: CrossPreview
   setCrossPreview: (c: CrossPreview) => void
+  /** 지우개로 문지르는 중 지워질 것 (펼침면 양쪽 페이지에서 함께 숨긴다) */
+  erasing: string[] | null
+  setErasing: (ids: string[] | null) => void
   addBox: (x: number, y: number, w: number, h: number) => void
   /** 네모칸 크기·위치 바꾸기 (모서리 손잡이로 끌기). 되돌리기 한 번 */
   resizeBox: (id: string, r: { x: number; y: number; w: number; h: number }) => void
@@ -440,6 +443,8 @@ export const useStore = create<State>()((set, get) => ({
   clipboard: null,
   crossPreview: null,
   setCrossPreview: (crossPreview) => set({ crossPreview }),
+  erasing: null,
+  setErasing: (erasing) => set({ erasing }),
   textSize: 'm',
   boxAlign: 'left',
   textValign: 'middle',
@@ -808,11 +813,11 @@ export const useStore = create<State>()((set, get) => ({
         : { eraserMode: false },
     ),
 
+  // 어느 페이지에 있든 지운다 (지우개를 펼침면 양쪽에 걸쳐 문질러도 되돌리기 한 번에 함께)
   deleteIds: (ids) => {
     const s = get()
-    const page = currentPage(s)
-    if (!page || !ids.length) return
-    set({ ...withElements(s, page.elements.filter((e) => !ids.includes(e.id))), selection: [] })
+    if (!ids.length) return
+    set({ ...withPages(s, (els) => (els.some((e) => ids.includes(e.id)) ? els.filter((e) => !ids.includes(e.id)) : null)), selection: [] })
   },
 
   // 고른 것을 한 칸 오른쪽 아래에 복제하고, 복제한 것을 고른 상태로

@@ -148,6 +148,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
       st.setMarquee(null)
       st.setPaintPreview(null)
       st.setCrossPreview(null)
+      st.setErasing(null)
     }
     window.addEventListener('dotlyt:cancel-draw', cancel)
     return () => window.removeEventListener('dotlyt:cancel-draw', cancel)
@@ -202,6 +203,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
     }
     if (st.eraserMode) {
       const first = hitTest(elements, p, [], true)
+      st.setErasing(first ? [first.id] : [])
       setDrag({ kind: 'erase', ids: first ? [first.id] : [], last: p })
       return
     }
@@ -298,18 +300,24 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
       }
       case 'erase': {
         // 지나간 길을 촘촘히 훑어서 닿은 것을 모두 지운다
+        // 펼침면이면 반대쪽 페이지로 넘어가도 그 페이지 것을 지운다: 지나간 점마다 그 자리에 있는 페이지에서 찾는다
         const ids = new Set(d.ids)
+        const me = svgRef.current!.getBoundingClientRect()
+        const others = [...document.querySelectorAll<SVGSVGElement>('.page-svg')]
+          .filter((s) => s !== svgRef.current)
+          .map((s) => ({ r: s.getBoundingClientRect(), els: st.pages.find((pg) => pg.id === s.dataset.pageId)?.elements ?? [] }))
         const steps = Math.max(1, Math.ceil(Math.hypot(p.x - d.last.x, p.y - d.last.y) / 0.2))
         for (let i = 1; i <= steps; i++) {
           const q = { x: d.last.x + ((p.x - d.last.x) * i) / steps, y: d.last.y + ((p.y - d.last.y) * i) / steps }
-          const h = hitTest(
-            elements.filter((el) => !ids.has(el.id)),
-            q,
-            [],
-            true,
-          )
+          const cx = me.left + q.x * cell
+          const cy = me.top + q.y * cell
+          const o = others.find(({ r }) => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom)
+          const h = o
+            ? hitTest(o.els.filter((el) => !ids.has(el.id)), { x: (cx - o.r.left) / cell, y: (cy - o.r.top) / cell }, [], true)
+            : hitTest(elements.filter((el) => !ids.has(el.id)), q, [], true)
           if (h) ids.add(h.id)
         }
+        st.setErasing([...ids])
         setDrag({ kind: 'erase', ids: [...ids], last: p })
         return
       }
@@ -424,6 +432,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
         return
       }
       case 'erase':
+        st.setErasing(null)
         st.deleteIds(d.ids)
         return
       case 'paint': {
@@ -528,7 +537,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
 
   // 옮기는 중: 고른 것은 실제로 놓일 페이지·칸에 보여준다 (반대쪽 페이지로 넘어가는 것 포함)
   const placements = moveDelta ? placeSelection(allPages, selection, moveDelta.dx, moveDelta.dy) : null
-  const erasing = drag?.kind === 'erase' ? drag.ids : null
+  const erasing = useStore((s) => s.erasing)
   const resizing = drag?.kind === 'resize' ? drag : null
   const shown = placements
     ? [...elements.filter((el) => !selection.includes(el.id)), ...placements.filter((pl) => pl.to === page.id).map((pl) => pl.el)]
@@ -656,6 +665,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
             st.setCrossPreview(null)
             st.setMarquee(null)
             st.setMoveDelta(null)
+            st.setErasing(null)
           }}
           onPointerLeave={() => setHover(null)}
           onContextMenu={(e) => {
