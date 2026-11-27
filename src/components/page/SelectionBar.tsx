@@ -14,8 +14,14 @@ export function SelectionBar({ elements, selection, cell, cols, leaving }: { ele
     const el = barRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const base = r.left - shift
-    const fix = base < 8 ? 8 - base : base + r.width > window.innerWidth - 8 ? window.innerWidth - 8 - (base + r.width) : 0
+    // 노트 영역(.desk)이 넘치는 부분을 잘라내므로 그 안으로
+    const d = el.closest('.desk')?.getBoundingClientRect()
+    const minX = Math.max(8, (d?.left ?? 0) + 4)
+    const maxX = Math.min(window.innerWidth - 8, (d?.right ?? window.innerWidth) - 4)
+    // 뜰 때 살짝 작게 시작하는 애니메이션 중이어도 실제 크기(offsetWidth)로, 가운데 기준으로 잰다
+    const w = el.offsetWidth
+    const base = r.left + r.width / 2 - w / 2 - shift
+    const fix = base < minX ? minX - base : base + w > maxX ? maxX - (base + w) : 0
     if (Math.abs(fix - shift) > 0.5) setShift(fix)
   })
   if (!sel.length) return null
@@ -81,7 +87,13 @@ export function ColorDot({
   label,
   below,
   onPick,
+  className = 'sel-color',
+  children,
 }: {
+  /** 버튼 모양 (기호 팝업에서는 다른 항목과 같은 sym-opt) */
+  className?: string
+  /** 컬러점 옆에 같이 보일 글자 (버튼 전체를 눌러도 열린다) */
+  children?: React.ReactNode
   items: El[]
   colors: { name: string; color: string }[]
   fallback: string
@@ -90,19 +102,33 @@ export function ColorDot({
   onPick: (color: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  // 노트 영역(.desk) 밖으로 나가면 잘려서 안 보인다: 위로 펼칠 자리가 없으면 아래로, 아래가 없으면 위로
+  const [flip, setFlip] = useState(false)
+  const palRef = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    if (!open) return setFlip(false)
+    const pal = palRef.current
+    const desk = pal?.closest('.desk') ?? document.querySelector('.desk')
+    if (!pal || !desk) return
+    const r = pal.getBoundingClientRect()
+    const d = desk.getBoundingClientRect()
+    if (r.top < d.top + 4 || r.bottom > d.bottom - 4) setFlip((f) => !f)
+  }, [open])
+  const down = below !== flip
   const colorOf = (e: El) => (e as { color?: string }).color ?? fallback
   const cur = colorOf(items[0])
   const mixed = items.some((e) => colorOf(e) !== cur)
   return (
     <span className="sel-color-wrap">
-      <button className={'sel-color' + (open ? ' on' : '')} onClick={() => setOpen((v) => !v)} title={label + ' 바꾸기'} aria-label={label + ' 바꾸기'} aria-expanded={open}>
+      <button className={className + (open ? ' on' : '')} onClick={() => setOpen((v) => !v)} title={label + ' 바꾸기'} aria-label={label + ' 바꾸기'} aria-expanded={open}>
         <span
           className={'sel-color-dot' + (mixed ? ' mixed' : '')}
           style={mixed ? { background: `conic-gradient(${colors.slice(0, 4).map((c, i) => `${c.color} 0 ${(i + 1) * 25}%`).join(', ')})` } : { background: cur }}
         />
+        {children}
       </button>
       {open && (
-        <span className={'sel-palette' + (below ? ' below' : '')} role="listbox" aria-label={label}>
+        <span ref={palRef} className={'sel-palette' + (down ? ' below' : '')} role="listbox" aria-label={label}>
           {colors.map((c) => (
             <button
               key={c.color}

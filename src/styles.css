@@ -3563,19 +3563,11 @@ h3 {
 }
 
 /* 기호 팝업 안 컬러점: 고른 것 막대와 같은 모양 */
-.sym-color {
-  cursor: default;
-}
-.sym-color .sel-color {
-  padding: 3px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-}
-.sym-color .sel-color:hover,
-.sym-color .sel-color.on {
-  background: var(--hover);
+/* 기호 팝업의 '색' 항목: 항목 전체가 버튼, 컬러점은 다른 항목의 기호 자리에 */
+.sym-opt.sym-color .sel-color-dot {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0;
 }
 .sym-popup .sel-palette button {
   padding: 5px;

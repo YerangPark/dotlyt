@@ -48,8 +48,14 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
     const el = popRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const base = r.left - shift
-    const fix = base < 8 ? 8 - base : base + r.width > window.innerWidth - 8 ? window.innerWidth - 8 - (base + r.width) : 0
+    // 노트 영역(.desk)이 넘치는 부분을 잘라내므로 그 안으로
+    const d = el.closest('.desk')?.getBoundingClientRect()
+    const minX = Math.max(8, (d?.left ?? 0) + 4)
+    const maxX = Math.min(window.innerWidth - 8, (d?.right ?? window.innerWidth) - 4)
+    // 뜰 때 살짝 작게 시작하는 애니메이션 중이어도 실제 크기(offsetWidth)로, 가운데 기준으로 잰다
+    const w = el.offsetWidth
+    const base = r.left + r.width / 2 - w / 2 - shift
+    const fix = base < minX ? minX - base : base + w > maxX ? maxX - (base + w) : 0
     if (Math.abs(fix - shift) > 0.5) setShift(fix)
   })
   // 미리보기 색: 새로 넣으면 지금 고른 펜 색, 이미 있는 기호면 그 기호 색
@@ -162,10 +168,17 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
         <>
           <span className="sym-sep" />
           {/* 기호 색: 누르면 펜 색 5가지가 펼쳐진다 */}
-          <span className="sym-opt sym-color">
-            <ColorDot items={[bullet]} colors={INK_COLORS} fallback={INK_COLORS[0].color} label="기호 색" below={below} onPick={(c) => st.recolorIds([bullet.id], c)} />
+          <ColorDot
+            className="sym-opt sym-color"
+            items={[bullet]}
+            colors={INK_COLORS}
+            fallback={INK_COLORS[0].color}
+            label="기호 색"
+            below={below}
+            onPick={(c) => st.recolorIds([bullet.id], c)}
+          >
             <span className="sym-label">색</span>
-          </span>
+          </ColorDot>
           <button role="menuitem" className={'sym-opt' + (bullet.cancelled ? ' on' : '')} onClick={() => st.toggleCancel(bullet.id)}>
             <span className="sym-strike">가</span>
             <span className="sym-label">취소</span>
