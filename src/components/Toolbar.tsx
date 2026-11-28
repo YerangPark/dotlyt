@@ -1,4 +1,4 @@
-import { currentPage, redoTarget, undoTarget, useStore } from '../store'
+import { currentPage, redoTarget, toolOf, undoTarget, useStore } from '../store'
 import { TextStyleButton } from './TextStylePanel'
 import { tip } from './Tooltip'
 import { HIGHLIGHT_COLORS, INK_COLORS, type PenType } from '../types'
@@ -50,8 +50,8 @@ function StrokeIcon({ width, dash }: { width: 1 | 2; dash: boolean }) {
 export default function Toolbar() {
   const lineStyle = useStore((s) => s.lineStyle)
   const setLineStyle = useStore((s) => s.setLineStyle)
-  const selectMode = useStore((s) => s.selectMode)
-  const setSelectMode = useStore((s) => s.setSelectMode)
+  const tool = useStore(toolOf)
+  const setTool = useStore((s) => s.setTool)
   const showGuides = useStore((s) => s.showGuides)
   // 쓰고 있는 글자가 있으면 그 글자의 굵기, 없으면 앞으로 쓸 글자의 굵기
   const textBold = useStore((s) => {
@@ -62,12 +62,8 @@ export default function Toolbar() {
   const toggleBold = useStore((s) => s.toggleBold)
   const setShowGuides = useStore((s) => s.setShowGuides)
   const hasSelection = useStore((s) => s.selection.length > 0)
-  const eraserMode = useStore((s) => s.eraserMode)
-  const highlightMode = useStore((s) => s.highlightMode)
-  const setHighlightMode = useStore((s) => s.setHighlightMode)
   const hlColor = useStore((s) => s.hlColor)
   const setHlColor = useStore((s) => s.setHlColor)
-  const setEraserMode = useStore((s) => s.setEraserMode)
   const hasCursor = useStore((s) => !!s.cursor)
   const popupOpen = useStore((s) => s.popup?.kind === 'insert')
   const deleteSelection = useStore((s) => s.deleteSelection)
@@ -83,16 +79,33 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar" onPointerDown={keep}>
-      {/* 모바일: 누를 때마다 바뀌는 버튼 하나씩 */}
-      <div className="tool-group compact-only">
-        <button className="tool" onClick={() => setLineStyle({ pen: nextPen })} {...tip(PEN_LABEL[lineStyle.pen], `누르면 ${PEN_LABEL[nextPen]}로 바꿔요`, 'pen')}>
+      {/* 도구: 늘 하나만 켜진다. 같은 도구를 한 번 더 누르면 펜으로 */}
+      <div className="tool-group tools" role="group" aria-label="도구">
+        {/* 휴대폰: 펜 버튼 하나 (펜일 때 누르면 볼펜 ↔ 연필) */}
+        <button
+          className={'tool compact-only' + (tool === 'pen' ? ' on' : '')}
+          onClick={() => (tool === 'pen' ? setLineStyle({ pen: nextPen }) : setTool('pen'))}
+          {...tip(PEN_LABEL[lineStyle.pen], tool === 'pen' ? `누르면 ${PEN_LABEL[nextPen]}로 바꿔요` : '펜으로 쓰고 그리기', 'pen')}
+          aria-pressed={tool === 'pen'}
+        >
           <PenIcon pen={lineStyle.pen} />
         </button>
+        {(['ballpoint', 'pencil'] as const).map((p) => (
+          <button
+            key={p}
+            className={'tool full-only' + (tool === 'pen' && lineStyle.pen === p ? ' on' : '')}
+            onClick={() => setTool('pen', p)}
+            {...tip(PEN_LABEL[p], p === 'pencil' ? '흑연처럼 거친 선' : '매끈한 잉크 선', 'pen')}
+            aria-pressed={tool === 'pen' && lineStyle.pen === p}
+          >
+            <PenIcon pen={p} />
+          </button>
+        ))}
         <button
-          className={'tool' + (highlightMode ? ' on' : '')}
-          onClick={() => setHighlightMode(!highlightMode)}
+          className={'tool' + (tool === 'highlight' ? ' on' : '')}
+          onClick={() => setTool(tool === 'highlight' ? 'pen' : 'highlight')}
           {...tip('형광펜', '끌면 가로나 세로로 곧게 칠해져요', 'highlight')}
-          aria-pressed={highlightMode}
+          aria-pressed={tool === 'highlight'}
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
             <path d="M14.5 4.5l5 5-7.5 7.5h-3l-2-2v-3z" />
@@ -100,6 +113,32 @@ export default function Toolbar() {
             <path d="M13 20.5h7.5" stroke={hlColor ?? 'currentColor'} strokeWidth="3" opacity="0.7" />
           </svg>
         </button>
+        <button
+          className={'tool' + (tool === 'select' ? ' on' : '')}
+          onClick={() => setTool(tool === 'select' ? 'pen' : 'select')}
+          {...tip('고르기', '끌어서 영역 안 항목 고르기 (Shift + 끌기도 돼요)', 'select')}
+          aria-pressed={tool === 'select'}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="4" y="4" width="16" height="16" rx="2" strokeDasharray="3 2.5" />
+          </svg>
+        </button>
+        <button
+          className={'tool' + (tool === 'eraser' ? ' on' : '')}
+          onClick={() => setTool(tool === 'eraser' ? 'pen' : 'eraser')}
+          {...tip('지우개', '문지르면 닿은 것을 지워요', 'eraser')}
+          aria-pressed={tool === 'eraser'}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+            <path d="M14.5 4.5l5 5-9 9H6l-2.5-2.5a1.4 1.4 0 010-2z" />
+            <path d="M9.5 9.5l5 5" />
+            <path d="M11 18.5h9" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* 모바일: 누를 때마다 바뀌는 버튼 하나씩 */}
+      <div className="tool-group compact-only">
         <button
           className="tool"
           onClick={() => setLineStyle({ width: lineStyle.width === 1 ? 2 : 1 })}
@@ -127,7 +166,7 @@ export default function Toolbar() {
         >
           {lineStyle.double ? <DoubleIcon /> : <StrokeIcon width={1} dash={lineStyle.dash} />}
         </button>
-        {highlightMode ? (
+        {tool === 'highlight' ? (
           <button
             className="tool"
             onClick={() => {
@@ -151,35 +190,6 @@ export default function Toolbar() {
             <span className="ink-dot" style={{ background: lineStyle.color }} />
           </button>
         )}
-      </div>
-
-      <div className="tool-group full-only" role="group" aria-label="펜 종류">
-        {(['ballpoint', 'pencil'] as const).map((p) => (
-          <button
-            key={p}
-            className={'tool' + (lineStyle.pen === p && !highlightMode ? ' on' : '')}
-            onClick={() => {
-              setLineStyle({ pen: p })
-              if (highlightMode) setHighlightMode(false)
-            }}
-            {...tip(PEN_LABEL[p], p === 'pencil' ? '흑연처럼 거친 선' : '매끈한 잉크 선', 'pen')}
-            aria-pressed={lineStyle.pen === p && !highlightMode}
-          >
-            <PenIcon pen={p} />
-          </button>
-        ))}
-        <button
-          className={'tool' + (highlightMode ? ' on' : '')}
-          onClick={() => setHighlightMode(!highlightMode)}
-          {...tip('형광펜', '끌면 가로나 세로로 곧게 칠해져요', 'highlight')}
-          aria-pressed={highlightMode}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round">
-            <path d="M14.5 4.5l5 5-7.5 7.5h-3l-2-2v-3z" />
-            <path d="M7 14.5L4.5 17l2.5 2.5L9.5 17" />
-            <path d="M13 20.5h7.5" stroke={hlColor ?? 'currentColor'} strokeWidth="3" opacity="0.7" />
-          </svg>
-        </button>
       </div>
 
       <div className="tool-group full-only" role="group" aria-label="선 굵기">
@@ -212,7 +222,7 @@ export default function Toolbar() {
         </button>
       </div>
 
-      {highlightMode ? (
+      {tool === 'highlight' ? (
         <div className="tool-group full-only" role="group" aria-label="형광펜 색">
           {HIGHLIGHT_COLORS.map((c) => (
             <button
@@ -275,28 +285,6 @@ export default function Toolbar() {
             <circle cx="6" cy="12.5" r="2.2" />
             <path d="M4 18h4" />
             <path d="M11 7h9M11 12.5h9M11 18h9" opacity="0.45" />
-          </svg>
-        </button>
-        <button
-          className={'tool' + (selectMode ? ' on' : '')}
-          onClick={() => setSelectMode(!selectMode)}
-          {...tip('고르기', '끌어서 영역 안 항목 고르기 (Shift + 끌기도 돼요)', 'select')}
-          aria-pressed={selectMode}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <rect x="4" y="4" width="16" height="16" rx="2" strokeDasharray="3 2.5" />
-          </svg>
-        </button>
-        <button
-          className={'tool' + (eraserMode ? ' on' : '')}
-          onClick={() => setEraserMode(!eraserMode)}
-          {...tip('지우개', '문지르면 닿은 것을 지워요', 'eraser')}
-          aria-pressed={eraserMode}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
-            <path d="M14.5 4.5l5 5-9 9H6l-2.5-2.5a1.4 1.4 0 010-2z" />
-            <path d="M9.5 9.5l5 5" />
-            <path d="M11 18.5h9" strokeLinecap="round" />
           </svg>
         </button>
         <button className="tool full-only" onClick={deleteSelection} disabled={!hasSelection} {...tip('고른 것 지우기', undefined, 'delete')}>

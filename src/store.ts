@@ -327,6 +327,8 @@ interface State extends Persisted {
 
   setSelection: (ids: string[]) => void
   setSelectMode: (on: boolean) => void
+  /** 도구는 늘 하나만: 펜(볼펜·연필), 형광펜, 고르기, 지우개 */
+  setTool: (tool: Tool, pen?: PenType) => void
   setEraserMode: (on: boolean) => void
   setHighlightMode: (on: boolean) => void
   setHlColor: (c: string | null) => void
@@ -371,6 +373,11 @@ interface State extends Persisted {
   undo: () => void
   redo: () => void
 }
+
+export type Tool = 'pen' | 'highlight' | 'select' | 'eraser'
+/** 지금 쓰는 도구 (하나만) */
+export const toolOf = (s: Pick<State, 'selectMode' | 'eraserMode' | 'highlightMode'>): Tool =>
+  s.selectMode ? 'select' : s.eraserMode ? 'eraser' : s.highlightMode ? 'highlight' : 'pen'
 
 export const currentPage = (s: Pick<State, 'pages' | 'currentPageId'>) =>
   s.pages.find((p) => p.id === s.currentPageId) ?? null
@@ -807,6 +814,13 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   setSelection: (ids) => set({ selection: ids }),
+  setTool: (tool, pen) => {
+    const s = get()
+    if (tool === 'select') return s.setSelectMode(true)
+    if (tool === 'eraser') return s.setEraserMode(true)
+    if (tool === 'highlight') return s.setHighlightMode(true)
+    set({ selectMode: false, eraserMode: false, highlightMode: false, ...(pen ? { lineStyle: { ...s.lineStyle, pen } } : {}) })
+  },
   setSelectMode: (on) =>
     set(on ? { selectMode: true, eraserMode: false, highlightMode: false, ...leaveCursor(get()) } : { selectMode: false }),
   setHighlightMode: (on) =>

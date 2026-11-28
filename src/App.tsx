@@ -6,7 +6,7 @@ import NotebookForm from './components/NotebookForm'
 import { PagesOverview } from './components/PagesOverview'
 import PageView from './components/PageView'
 import Toolbar from './components/Toolbar'
-import { clipFromHtml, currentPage, spreadStart, useStore } from './store'
+import { clipFromHtml, currentPage, spreadStart, toolOf, useStore } from './store'
 import { HIGHLIGHT_COLORS, INK_COLORS, isLight } from './types'
 import { matchShortcut } from './shortcuts'
 import { ShortcutHelp } from './components/ShortcutHelp'
@@ -209,9 +209,7 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
       if (e.key === 'Escape') {
         st.setSelection([])
         st.closeCursor()
-        st.setSelectMode(false)
-        st.setEraserMode(false)
-        st.setHighlightMode(false)
+        st.setTool('pen')
         return
       }
       // 글자나 네모칸 하나를 고른 상태에서 Enter: 그 글자 고치기
@@ -231,7 +229,8 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
       const ls = st.lineStyle
       switch (id) {
         case 'pen':
-          return st.setLineStyle({ pen: ls.pen === 'ballpoint' ? 'pencil' : 'ballpoint' })
+          // 다른 도구를 쓰던 중이면 펜으로 돌아오고, 이미 펜이면 볼펜 ↔ 연필
+          return toolOf(st) === 'pen' ? st.setLineStyle({ pen: ls.pen === 'ballpoint' ? 'pencil' : 'ballpoint' }) : st.setTool('pen')
         case 'width':
           return st.setLineStyle({ width: ls.width === 1 ? 2 : 1 })
         case 'dash':
@@ -246,12 +245,13 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           const i = INK_COLORS.findIndex((c) => c.color === ls.color)
           return st.setLineStyle({ color: INK_COLORS[(i + 1) % INK_COLORS.length].color })
         }
+        // 같은 키를 한 번 더 누르면 펜으로 돌아온다
         case 'highlight':
-          return st.setHighlightMode(!st.highlightMode)
+          return st.setTool(st.highlightMode ? 'pen' : 'highlight')
         case 'eraser':
-          return st.setEraserMode(!st.eraserMode)
+          return st.setTool(st.eraserMode ? 'pen' : 'eraser')
         case 'select':
-          return st.setSelectMode(!st.selectMode)
+          return st.setTool(st.selectMode ? 'pen' : 'select')
         case 'guides':
           return st.setShowGuides(!st.showGuides)
         case 'style':

@@ -3830,13 +3830,6 @@ h3 {
   clip-path: inset(-8px -8px -8px var(--glue));
 }
 
-/* PC: 휴대폰용 묶음(숨김)이 맨 앞에 있어서 첫 번째로 보이는 묶음 위에 구분선이 생기던 것 없애기 */
-@media (min-width: 721px) {
-  .tool-group.compact-only + .tool-group {
-    border-top: 0;
-    padding-top: 0;
-  }
-}
 
 /* ---------- 한 장씩 보기(휴대폰): 왼쪽 페이지는 표지 판이 왼쪽에, 책등이 오른쪽에 ---------- */
 .notebook.single-left {
