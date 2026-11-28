@@ -13,7 +13,7 @@ import { SelectionBar } from './page/SelectionBar'
 import { IconPicker } from './page/IconPicker'
 import { CalendarPicker } from './page/CalendarPicker'
 import { ContextMenu, type CtxMenu } from './page/ContextMenu'
-import { fillSource, seriesFor } from '../fill'
+import { fillSource, seriesFor, textBefore } from '../fill'
 
 type Drag =
   | { kind: 'pending'; start: Pt; hit: El | null; onSelected: boolean; grab: 'dot' | 'cell' }
@@ -323,7 +323,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
       case 'fill': {
         const src = fillSource(elements.find((el) => el.id === d.id))
         if (!src) return
-        const els = seriesFor(src, d.start, p, { cols, rows })
+        const els = seriesFor(src, d.start, p, { cols, rows }, textBefore(src, elements))
         if (els.length !== d.els.length || els.some((el, i) => (el as { text: string }).text !== (d.els[i] as { text: string }).text)) setDrag({ ...d, els })
         return
       }

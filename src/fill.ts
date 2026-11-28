@@ -3,7 +3,7 @@ import { uid } from './store'
 import type { El, Page, Pt } from './types'
 
 /**
- * 엑셀처럼 숫자 이어 쓰기: 숫자가 든 글자(또는 네모칸)를 Shift를 누른 채 끌면 그 방향으로 한 칸씩 1, 2, 3…
+ * 엑셀처럼 숫자·요일 이어 쓰기: 숫자나 요일(M T W…, 월 화 수…)이 든 글자(또는 네모칸)를 Shift를 누른 채 끌면 그 방향으로 한 칸씩 1, 2, 3…
  * 오른쪽·아래로 끌면 커지고, 왼쪽·위로 끌면 작아진다. 글자 모양(글씨체·크기·굵기·색·정렬)은 처음 것을 그대로 따른다.
  */
 
@@ -12,12 +12,33 @@ type Fillable = Extract<El, { type: 'text' | 'box' }>
 /** 글자 안의 마지막 숫자 (앞뒤 글자는 그대로 둔다: "1일" → "2일", "Day 01" → "Day 02") */
 const NUM = /(-?\d+)(?!.*\d)/
 
-export function fillSource(el: El | null | undefined): Fillable | null {
-  if (!el || (el.type !== 'text' && el.type !== 'box')) return null
-  return NUM.test(el.text) ? el : null
+/** 요일은 돌아가며 이어진다: M T W T F S S M T … (T·S처럼 겹치는 글자는 앞의 것: T는 화, S는 토로 본다) */
+const CYCLES = [
+  ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'],
+  ['월', '화', '수', '목', '금', '토', '일'],
+]
+const cycleOf = (text: string, before?: string) => {
+  const t = text.trim()
+  for (const c of CYCLES) {
+    const i = c.indexOf(t)
+    if (i < 0) continue
+    // 같은 글자가 두 번 있으면(T, S) 바로 앞 칸 글자로 구별: W 다음 T는 목, F 다음 S는 토, S 다음 S는 일
+    const j = c.findIndex((v, n) => v === t && c[(n + 6) % 7] === before?.trim())
+    return { c, i: j >= 0 ? j : i }
+  }
+  return null
 }
 
-function nthText(text: string, k: number): string {
+export function fillSource(el: El | null | undefined): Fillable | null {
+  if (!el || (el.type !== 'text' && el.type !== 'box')) return null
+  return NUM.test(el.text) || cycleOf(el.text) ? el : null
+}
+
+function nthText(text: string, k: number, before?: string): string {
+  const cyc = cycleOf(text, before)
+  if (cyc) return cyc.c[(((cyc.i + k) % 7) + 7) % 7]
   return text.replace(NUM, (m) => {
     const v = parseInt(m, 10) + k
     // 01, 02…처럼 앞에 0을 붙여 쓴 건 자릿수를 지킨다
@@ -34,7 +55,7 @@ const widthOf = (el: Fillable, text: string) => (el.type === 'box' ? el.w : text
  * 시작한 칸(start)에서 지금 칸(p)까지 끈 만큼 이어 쓸 것들. 더 많이 움직인 방향(가로·세로)으로만, 페이지 밖은 뺀다.
  * 한 칸 간격(stride)은 가로면 이어 쓸 숫자 중 가장 넓은 것, 세로면 높이(글자 1칸, 네모칸은 높이).
  */
-export function seriesFor(src: Fillable, start: Pt, p: Pt, page: Pick<Page, 'cols' | 'rows'>): El[] {
+export function seriesFor(src: Fillable, start: Pt, p: Pt, page: Pick<Page, 'cols' | 'rows'>, before?: string): El[] {
   const dx = p.x - start.x
   const dy = p.y - start.y
   const horizontal = Math.abs(dx) >= Math.abs(dy)
@@ -44,12 +65,12 @@ export function seriesFor(src: Fillable, start: Pt, p: Pt, page: Pick<Page, 'col
   // 넉넉히 셀 개수를 먼저 정하고 (가장 넓은 숫자로 간격), 그 간격으로 몇 개가 들어가는지
   const guess = Math.max(0, Math.floor(Math.abs(delta) / (horizontal ? widthOf(src, src.text) : h) + 0.5))
   if (!guess) return []
-  const texts = Array.from({ length: guess }, (_, i) => nthText(src.text, (i + 1) * sign))
+  const texts = Array.from({ length: guess }, (_, i) => nthText(src.text, (i + 1) * sign, before))
   const stride = horizontal ? Math.max(widthOf(src, src.text), ...texts.map((t) => widthOf(src, t))) : h
   const n = Math.max(0, Math.floor(Math.abs(delta) / stride + 0.5))
   const out: El[] = []
   for (let k = 1; k <= n; k++) {
-    const text = nthText(src.text, k * sign)
+    const text = nthText(src.text, k * sign, before)
     const x = src.x + (horizontal ? k * sign * stride : 0)
     const y = src.y + (horizontal ? 0 : k * sign * h)
     const w = widthOf(src, text)
@@ -57,4 +78,11 @@ export function seriesFor(src: Fillable, start: Pt, p: Pt, page: Pick<Page, 'col
     out.push({ ...src, id: uid(), x, y, text } as El)
   }
   return out
+}
+
+/** 이어 쓰기 시작한 칸 바로 앞(왼쪽, 없으면 위) 칸의 글자: T·S처럼 겹치는 요일을 구별하는 데 쓴다 */
+export function textBefore(src: Fillable, elements: El[]): string | undefined {
+  const at = (x: number, y: number) =>
+    elements.find((e): e is Fillable => (e.type === 'text' || e.type === 'box') && e.id !== src.id && e.y === y && e.x <= x && x < e.x + widthOf(e, e.text))
+  return (at(src.x - 1, src.y) ?? at(src.x, src.y - 1))?.text
 }
