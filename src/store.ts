@@ -791,11 +791,11 @@ export const useStore = create<State>()((set, get) => ({
       w: dayW,
       h: 1,
       text,
-      size: 's',
+      size: 'xs',
       align: 'center',
       ...(color !== INK_COLORS[0].color ? { color } : {}),
     })
-    const els: El[] = [...'MTWTFSS'].map((d, i) => ({ ...cellBox(i, 0, d), bold: true }) as El)
+    const els: El[] = [...'MTWTFSS'].map((d, i) => cellBox(i, 0, d))
     // 월요일부터: 1일이 무슨 요일 칸에 오는지
     const offset = (new Date(year, month, 1).getDay() + 6) % 7
     const days = new Date(year, month + 1, 0).getDate()

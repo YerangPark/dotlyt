@@ -4261,7 +4261,7 @@ h3 {
 }
 .cal-preview b {
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 400;
   padding-bottom: 2px;
 }
 .cal-preview span {
