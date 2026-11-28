@@ -1,12 +1,19 @@
 export type NotebookSize = 'pocket' | 'paperback' | 'medium' | 'composition'
 
 /** 실제 불렛저널 규격 (Leuchtturm1917 기준), 도트 간격 5mm */
+/**
+ * cols·rows: 종이 전체 칸 수. 점은 가장자리에서 한 칸 안쪽부터 찍혀서, 점 안쪽 격자는 (cols − 2) × (rows − 2)칸.
+ * 점 안쪽 격자가 5mm 칸으로 센 크기(예: A6 18 × 30)가 되도록 가장자리 한 칸씩을 더했다.
+ */
 export const SIZES: Record<NotebookSize, { label: string; mm: string; cols: number; rows: number }> = {
-  pocket: { label: 'Pocket (A6)', mm: '90 × 150', cols: 18, rows: 30 },
-  paperback: { label: 'Paperback (B6+)', mm: '125 × 190', cols: 25, rows: 38 },
-  medium: { label: 'Medium (A5)', mm: '145 × 210', cols: 29, rows: 42 },
-  composition: { label: 'Composition (B5)', mm: '178 × 254', cols: 35, rows: 50 },
+  pocket: { label: 'Pocket (A6)', mm: '90 × 150', cols: 20, rows: 32 },
+  paperback: { label: 'Paperback (B6+)', mm: '125 × 190', cols: 27, rows: 40 },
+  medium: { label: 'Medium (A5)', mm: '145 × 210', cols: 31, rows: 44 },
+  composition: { label: 'Composition (B5)', mm: '178 × 254', cols: 37, rows: 52 },
 }
+
+/** 예전 규격(종이 전체를 5mm 칸으로 센 것) → 점 안쪽이 그만큼 되게 가장자리 한 칸씩 늘린다 */
+export const OLD_PAGE_SIZES = ['18x30', '25x38', '29x42', '35x50']
 
 export const SIZE_ORDER: NotebookSize[] = ['pocket', 'paperback', 'medium', 'composition']
 

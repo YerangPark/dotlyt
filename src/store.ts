@@ -6,6 +6,7 @@ import {
   INK_COLORS,
   OLD_STICKER_COLORS,
   SIZES,
+  OLD_PAGE_SIZES,
   type BoxEl,
   type BulletEl,
   type BulletState,
@@ -75,10 +76,19 @@ function sharedClip(): State['clipboard'] {
   }
 }
 
+/**
+ * 예전 규격 페이지를 새 규격으로: 가장자리에 한 칸씩 더하고 쓴 것은 한 칸씩 안쪽으로 옮겨서,
+ * 점과의 자리 관계는 그대로 두고 점 안쪽 격자만 2칸씩 넓어진다. 이미 새 규격이면 그대로 (여러 번 해도 같음)
+ */
+export function widenOldPage<P extends { cols: number; rows: number; elements: El[] }>(p: P): P {
+  if (!OLD_PAGE_SIZES.includes(`${p.cols}x${p.rows}`)) return p
+  return { ...p, cols: p.cols + 2, rows: p.rows + 2, elements: p.elements.map((e) => translate(e, 1, 1)) }
+}
+
 function loadTemplates(): Template[] {
   try {
     const d = JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]')
-    return Array.isArray(d) ? d : []
+    return Array.isArray(d) ? d.map((t: Template) => ({ ...t, pages: t.pages.map(widenOldPage) })) : []
   } catch {
     return []
   }
@@ -110,7 +120,8 @@ interface Persisted {
   /** 저장 형식 판. 2부터 형광펜은 한 획(가로·세로 띠, 점)씩 저장한다 */
   v?: number
 }
-const DATA_VERSION = 2
+/** 3: 점 안쪽 격자가 규격 칸 수가 되도록 페이지를 가장자리 한 칸씩 넓혔다 */
+export const DATA_VERSION = 3
 
 /** 판 1(예전)에는 세로로 칠한 형광펜이 한 칸짜리로 쌓여 저장됐다: 한 획(세로 띠)으로 묶는다. 판 2부터는 점이 진짜 점이라 묶지 않는다 */
 function joinVerticalMarks(els: El[]): El[] {
@@ -140,7 +151,7 @@ function load(): Persisted {
         const legacyMarks = (d.v ?? 1) < 2 && !d.pages.some((p) => p.elements.some((e) => e.type === 'mark' && e.h > 1))
         // 글자 없이 남은 네모칸(편집 중에 창을 닫은 경우)은 치운다
         // 페이지 밖으로 밀려나 안 보이던 것(예전 옮기기)은 가장자리 안쪽으로 되돌린다
-        d.pages = d.pages.map((p) => ({
+        d.pages = d.pages.map(widenOldPage).map((p) => ({
           ...p,
           // 예전 쨍한 인덱스 색은 새 차분한 색으로
           index: p.index && OLD_STICKER_COLORS[p.index.color.toLowerCase()] ? { ...p.index, color: OLD_STICKER_COLORS[p.index.color.toLowerCase()] } : p.index,

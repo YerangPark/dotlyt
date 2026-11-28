@@ -103,7 +103,7 @@ export default function NotebookForm({ initial, submitLabel, onSubmit, onCancel 
                   <span className="size-shape" style={{ width: v.cols * 1.1, height: v.rows * 1.1 }} />
                   <span className="size-label">{v.label}</span>
                   <span className="size-sub">
-                    {v.mm}mm · {v.cols}×{v.rows}칸
+                    {v.mm}mm · {v.cols - 2}×{v.rows - 2}칸
                   </span>
                 </button>
               )

@@ -1,6 +1,6 @@
 import { createClient, type Session } from '@supabase/supabase-js'
 import { create } from 'zustand'
-import { useStore } from './store'
+import { DATA_VERSION, useStore, widenOldPage } from './store'
 import type { Notebook, Page } from './types'
 
 /**
@@ -16,7 +16,6 @@ export const supabase = url && key ? createClient(url, key) : null
 
 const META_KEY = 'dotlyt:sync'
 const BACKUP_KEY = 'dotlyt:v1:backup'
-const DATA_VERSION = 2
 
 type SyncState = 'off' | 'syncing' | 'synced' | 'offline' | 'error'
 export const useSync = create<{ enabled: boolean; email: string | null; state: SyncState }>(() => ({
@@ -85,6 +84,8 @@ function apply(data: { notebook: Notebook | null; pages: Page[] }, at: number) {
       /* 무시 */
     }
   }
+  // 다른 기기가 예전 규격으로 올린 것도 새 규격으로
+  data = { ...data, pages: data.pages.map(widenOldPage) }
   const keep = data.pages.some((p) => p.id === s.currentPageId)
   applying = true
   useStore.setState({
