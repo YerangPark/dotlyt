@@ -42,3 +42,52 @@ export function highlighterCursor(color: string | null): string {
 export const ERASER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g transform="rotate(-45 16 16)"><rect x="6" y="11" width="22" height="10" rx="2" fill="#f2b6ae" stroke="#2b2a28" stroke-width="1.3"/><path d="M8 11h4v10H8a2 2 0 01-2-2v-6a2 2 0 012-2z" fill="#fff" stroke="#2b2a28" stroke-width="1.3" stroke-linejoin="round"/></g></svg>`,
 )}") 9 23, cell`
+
+/**
+ * 맥 크롬은 SVG 그림 커서를 화면이 조금만 바뀌어도(파란 점 미리보기 등) 다시 그리면서 기본 커서로 깜박인다.
+ * 그래서 처음 쓸 때 PNG(선명하게 2배 크기 포함)로 바꿔 두고 그걸 쓴다. 바꾸는 동안은 SVG 그대로.
+ */
+const pngCache = new Map<string, string>()
+const pending = new Set<string>()
+const listeners = new Set<() => void>()
+let version = 0
+export const subscribeCursors = (fn: () => void) => {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+export const cursorsVersion = () => version
+
+const rasterize = (svgUrl: string, size: number) =>
+  new Promise<string>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = c.height = size
+      const ctx = c.getContext('2d')
+      if (!ctx) return reject(new Error('no canvas'))
+      ctx.drawImage(img, 0, 0, size, size)
+      resolve(c.toDataURL('image/png'))
+    }
+    img.onerror = reject
+    img.src = svgUrl
+  })
+
+export function pngCursor(css: string): string {
+  const m = css.match(/^url\("(data:image\/svg\+xml,[^"]+)"\) (\d+) (\d+), (.+)$/)
+  if (!m) return css
+  const hit = pngCache.get(css)
+  if (hit) return hit
+  if (!pending.has(css)) {
+    pending.add(css)
+    const [, url, hx, hy, fallback] = m
+    Promise.all([rasterize(url, 32), rasterize(url, 64)])
+      .then(([p1, p2]) => {
+        // 1배 PNG를 기본으로, 레티나는 2배 PNG (image-set을 모르는 브라우저는 앞의 url을 쓴다)
+        pngCache.set(css, `-webkit-image-set(url("${p1}") 1x, url("${p2}") 2x) ${hx} ${hy}, url("${p1}") ${hx} ${hy}, ${fallback}`)
+        version++
+        listeners.forEach((f) => f())
+      })
+      .catch(() => {})
+  }
+  return css
+}

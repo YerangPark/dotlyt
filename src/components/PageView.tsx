@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { BOX_LINE_GAP, BOX_PAD, DOT_GRAB, boxLineYs, boxLines, DRAG_THRESHOLD, FONT_SIZE, TEXT_PAD, axisEnd, boxFontSize, boxTouches, distToDot, elBox, hitTest, fontSizeOf, textWidth, textAnchor, textMidY, textInk, nearestDot, textCells } from '../geometry'
 import { fontOf } from '../fonts'
 import { placeSelection } from '../move'
 import { uid, useStore } from '../store'
 import type { El, MarkEl, Page, Pt } from '../types'
-import { BOX_CURSOR, CURSORS, ERASER_CURSOR, highlighterCursor } from './page/cursors'
+import { BOX_CURSOR, CURSORS, ERASER_CURSOR, cursorsVersion, highlighterCursor, pngCursor, subscribeCursors } from './page/cursors'
 import { addPaintCells, cellOf, useLinger, vPlace } from './page/helpers'
 import { BoxText, BulletGlyph, IconGlyph, InkLine, LivePreview, MarkGlyph, boldCss, boldProps } from './page/glyphs'
 import { GuideMarks, MarqueeRect } from './page/overlays'
@@ -574,6 +574,8 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
   )
 
   // 커서: 지우개 / 옮기는 중 / 고른 것(잡기) / 그려둔 항목(손가락) / 선 긋기(펜) / 네모칸(네모 커서)
+  // PNG로 바꾼 커서가 준비되면 다시 그린다
+  useSyncExternalStore(subscribeCursors, cursorsVersion)
   const svgCursorStyle = highlightMode
     ? highlighterCursor(hlColor)
     : eraserMode
@@ -666,7 +668,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
           ref={svgRef}
           className="page-svg"
           data-page-id={page.id}
-          style={{ cursor: svgCursorStyle }}
+          style={{ cursor: pngCursor(svgCursorStyle) }}
           width={cols * cell}
           height={rows * cell}
           viewBox={`0 0 ${cols} ${rows}`}
