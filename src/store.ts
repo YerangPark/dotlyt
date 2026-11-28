@@ -323,6 +323,8 @@ interface State extends Persisted {
   setIconSize: (size: 1 | 2 | 3) => void
   /** 아이콘 고르기 창에서 고른 아이콘을 칸에 넣거나, 있던 아이콘을 바꾼다 */
   addIcon: (icon: string) => void
+  /** 숫자 이어 쓰기: 만든 것들을 지금 페이지에 넣고, 처음 것과 함께 고른 상태로 (되돌리기 한 번) */
+  addSeries: (srcId: string, els: El[]) => void
   /** 한 달 달력: 첫 줄 M T W T F S S, 아래로 날짜. dayW: 하루 칸 폭(1~2칸). month는 0부터 */
   addCalendar: (year: number, month: number, dayW: number) => void
   setBulletState: (id: string, state: BulletState) => void
@@ -776,6 +778,16 @@ export const useStore = create<State>()((set, get) => ({
     }
     const el = clampInto({ id: uid(), type: 'icon', x: p.x, y: p.y, icon, size: s.iconSize, color: s.lineStyle.color }, page)
     set({ ...leaveCursor(s), ...withElements({ ...s, ...leaveCursor(s) } as State, [...page.elements, el]), popup: null, selection: [] })
+  },
+  addSeries: (srcId, els) => {
+    const s = get()
+    const page = currentPage(s)
+    if (!page || !els.length) return
+    // 같은 칸에 이미 있는 글자는 새 숫자로 바꾼다 (겹쳐 쓰지 않게)
+    const taken = new Set(els.map((e) => `${(e as { x: number }).x},${(e as { y: number }).y}`))
+    const keep = page.elements.filter((e) => !((e.type === 'text' || e.type === 'box') && e.id !== srcId && taken.has(`${e.x},${e.y}`)))
+    const base = { ...s, ...leaveCursor(s) } as State
+    set({ ...leaveCursor(s), ...withElements(base, [...keep, ...els]), selection: [srcId, ...els.map((e) => e.id)] })
   },
   addCalendar: (year, month, dayW) => {
     const s = get()

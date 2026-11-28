@@ -13,6 +13,7 @@ import { SelectionBar } from './page/SelectionBar'
 import { IconPicker } from './page/IconPicker'
 import { CalendarPicker } from './page/CalendarPicker'
 import { ContextMenu, type CtxMenu } from './page/ContextMenu'
+import { fillSource, seriesFor } from '../fill'
 
 type Drag =
   | { kind: 'pending'; start: Pt; hit: El | null; onSelected: boolean; grab: 'dot' | 'cell' }
@@ -23,6 +24,7 @@ type Drag =
   | { kind: 'erase'; ids: string[]; last: Pt }
   | { kind: 'paint'; start: Pt } // 형광펜: 시작점에서 가로나 세로 한 줄로만. 칠할 칸은 store.paintPreview에 (양쪽 페이지)
   | { kind: 'resize'; id: string; corner: Corner; orig: Rect; r: Rect } // 네모칸 모서리 손잡이로 크기 바꾸기
+  | { kind: 'fill'; id: string; start: Pt; els: El[] } // Shift를 누르고 숫자에서 끌기: 1, 2, 3… 이어 쓰기
 
 /**
  * 바깥쪽 종이 단면 두께(px): 그쪽에 남은 페이지 수만큼. 왼쪽 페이지는 앞에 지난 페이지, 오른쪽(한 장 보기)은 뒤에 남은 페이지.
@@ -223,6 +225,12 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
     const hit = hitTest(elements, p, sel, st.selectMode)
     const onSelected = !!hit && sel.includes(hit.id)
     // Shift: 항상 고르기(끌면 사각형, 누르면 하나 넣고 빼기). 고르기 도구: 고른 것을 잡으면 옮기기
+    // Shift를 누르고 숫자가 든 글자에서 끌면 엑셀처럼 숫자를 이어 쓴다 (그냥 누르기만 하면 평소처럼 고르기에 넣고 빼기)
+    if (e.shiftKey && !st.selectMode && fillSource(hit)) {
+      st.closeCursor()
+      setDrag({ kind: 'fill', id: hit!.id, start: p, els: [] })
+      return
+    }
     if (e.shiftKey || (st.selectMode && !onSelected)) {
       st.closeCursor()
       const c = { x: e.clientX, y: e.clientY }
@@ -310,6 +318,13 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
         const dy = e.clientY - a.y
         const b = Math.abs(dx) >= Math.abs(dy) ? { x: e.clientX, y: a.y } : { x: a.x, y: e.clientY }
         st.setPaintPreview(addPaintCells({}, a, b))
+        return
+      }
+      case 'fill': {
+        const src = fillSource(elements.find((el) => el.id === d.id))
+        if (!src) return
+        const els = seriesFor(src, d.start, p, { cols, rows })
+        if (els.length !== d.els.length || els.some((el, i) => (el as { text: string }).text !== (d.els[i] as { text: string }).text)) setDrag({ ...d, els })
         return
       }
       case 'erase': {
@@ -445,6 +460,15 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
         st.applyPlacements(placeSelection(all, st.selection, (p.x - d.start.x) * cell, (p.y - d.start.y) * cell))
         return
       }
+      case 'fill': {
+        if (d.els.length) st.addSeries(d.id, d.els)
+        else {
+          // 끌지 않고 Shift+누르기만: 고르기에 넣고 빼기
+          const cur = st.selection
+          st.setSelection(cur.includes(d.id) ? cur.filter((id) => id !== d.id) : [...cur, d.id])
+        }
+        return
+      }
       case 'erase':
         st.setErasing(null)
         st.deleteIds(d.ids)
@@ -553,7 +577,10 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
   const placements = moveDelta ? placeSelection(allPages, selection, moveDelta.dx, moveDelta.dy) : null
   const erasing = useStore((s) => s.erasing)
   const resizing = drag?.kind === 'resize' ? drag : null
-  const shown = placements
+  const filling = drag?.kind === 'fill' ? drag.els : null
+  const shown = filling
+    ? [...elements, ...filling]
+    : placements
     ? [...elements.filter((el) => !selection.includes(el.id)), ...placements.filter((pl) => pl.to === page.id).map((pl) => pl.el)]
     : erasing
       ? elements.filter((el) => !erasing.includes(el.id))
