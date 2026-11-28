@@ -4206,3 +4206,12 @@ h3 {
   width: fit-content;
   font-size: 12px;
 }
+/* 칸 가운데에 올렸을 때: 끌면 네모칸이 생기는 칸 */
+.hover-cell {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.04;
+  stroke-dasharray: 0.12 0.1;
+  opacity: 0.45;
+  pointer-events: none;
+}

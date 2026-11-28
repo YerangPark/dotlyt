@@ -108,7 +108,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
     setDragState(d)
   }
   /** 마우스가 무엇 위에 있는지: 고른 것 / 그려둔 항목 / 점(선 긋기) / 칸 가운데(네모칸) */
-  const [hover, setHover] = useState<{ dot: Pt | null; zone: 'selected' | 'item' | 'dot' | 'cell' } | null>(null)
+  const [hover, setHover] = useState<{ dot: Pt | null; zone: 'selected' | 'item' | 'dot' | 'cell'; cell?: Pt | null } | null>(null)
   const composingEnter = useRef<boolean | 'shift'>(false)
   // 오른쪽 클릭 메뉴
   const [ctx, setCtx] = useState<CtxMenu | null>(null)
@@ -253,8 +253,10 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
               : 'cell'
       // 선을 그을 수 있는 점 미리보기: 고르기·지우개·형광펜일 때는 선을 긋지 않으니 안 보인다
       const dot = !st.selectMode && !st.eraserMode && !st.highlightMode && zone === 'dot' ? nearestDot(p, cols, rows) : null
-      if (hover?.zone !== zone || hover?.dot?.x !== dot?.x || hover?.dot?.y !== dot?.y) {
-        setHover({ dot, zone })
+      // 칸 가운데: 끌면 네모칸이 생기는 칸을 옅은 점선 네모로 (커서 모양을 바꾸면 맥에서 깜박여서 커서는 펜 그대로)
+      const cell = !st.selectMode && !st.eraserMode && !st.highlightMode && zone === 'cell' ? { x: Math.floor(p.x), y: Math.floor(p.y) } : null
+      if (hover?.zone !== zone || hover?.dot?.x !== dot?.x || hover?.dot?.y !== dot?.y || hover?.cell?.x !== cell?.x || hover?.cell?.y !== cell?.y) {
+        setHover({ dot, zone, cell })
       }
       return
     }
@@ -588,9 +590,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
               ? BOX_CURSOR
               : hover?.zone === 'item'
                 ? 'pointer'
-                : hover?.zone === 'cell'
-                  ? BOX_CURSOR
-                  : CURSORS[pen]
+                : CURSORS[pen]
 
   let inputStyle: React.CSSProperties = { left: -9999, top: 0, width: 10, height: 10, opacity: 0, pointerEvents: 'none' }
   if (cursor && editing?.type === 'box') {
@@ -808,6 +808,7 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
             <rect x={popup.x} y={popup.y} width={1} height={1} rx={0.12} className="cursor-cell" />
           )}
           {hover?.dot && !drag && !highlightMode && <circle cx={hover.dot.x} cy={hover.dot.y} r={0.2} className="hover-dot" />}
+          {hover?.cell && !drag && !cursor && <rect x={hover.cell.x + 0.12} y={hover.cell.y + 0.12} width={0.76} height={0.76} rx={0.08} className="hover-cell" />}
           {resizable &&
             CORNERS.map((c) => {
               const hx = resizable.x + (c.includes('e') ? resizable.w : 0)
