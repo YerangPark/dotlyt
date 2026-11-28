@@ -4275,3 +4275,10 @@ h3 {
 .cal-add {
   width: 100%;
 }
+.edit-style-bar .edit-bold b {
+  font-size: 14px;
+  font-weight: 800;
+}
+.edit-style-bar .edit-bold.on {
+  background: var(--hover);
+}

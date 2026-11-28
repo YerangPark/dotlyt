@@ -9,7 +9,7 @@ import { addPaintCells, cellOf, useLinger, vPlace } from './page/helpers'
 import { BoxText, BulletGlyph, IconGlyph, InkLine, LivePreview, MarkGlyph, boldCss, boldProps } from './page/glyphs'
 import { GuideMarks, MarqueeRect } from './page/overlays'
 import { SymbolPopup } from './page/SymbolPopup'
-import { SelectionBar } from './page/SelectionBar'
+import { EditStyleBar, SelectionBar } from './page/SelectionBar'
 import { IconPicker } from './page/IconPicker'
 import { CalendarPicker } from './page/CalendarPicker'
 import { ContextMenu, type CtxMenu } from './page/ContextMenu'
@@ -119,6 +119,19 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
 
   const { cols, rows, elements } = page
   const editing = cursor?.editId ? elements.find((e) => e.id === cursor.editId) : undefined
+  // 고치는 글자 안에서 끌어 고르거나 전체 고르기(⌘A)를 하면 그 글자 위에 스타일 막대를 띄운다.
+  // 막대나 스타일 창을 누르느라 입력칸에서 손을 떼도 남아 있고, 입력칸 안에서 고른 게 없어지면 닫힌다
+  const [rangeOn, setRangeOn] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      const el = inputRef.current
+      if (!el || document.activeElement !== el) return
+      setRangeOn((el.selectionStart ?? 0) !== (el.selectionEnd ?? 0))
+    }
+    document.addEventListener('selectionchange', check)
+    return () => document.removeEventListener('selectionchange', check)
+  }, [])
+  useEffect(() => setRangeOn(false), [cursor?.editId])
   const inputValue = editing && (editing.type === 'text' || editing.type === 'box') ? editing.text : ''
   const inputBold = editing && (editing.type === 'text' || editing.type === 'box') ? !!editing.bold : textBold
   const inputSize = editing && (editing.type === 'text' || editing.type === 'box') ? editing.size : textSize
@@ -906,6 +919,9 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
       {ctxLinger.value && <ContextMenu menu={ctxLinger.value} onClose={closeCtx} leaving={ctxLinger.leaving} />}
       {popup?.kind === 'calendar' && <CalendarPicker x={popup.x} y={popup.y} cols={cols} rows={rows} cell={cell} />}
       {popup?.kind === 'icon' && <IconPicker x={popup.x} y={popup.y} cols={cols} rows={rows} cell={cell} replacing={!!popup.replaceId} />}
+      {rangeOn && editing && (editing.type === 'text' || editing.type === 'box') && (
+        <EditStyleBar el={editing} cell={cell} />
+      )}
       {barLinger.value && <SelectionBar elements={barLinger.value.elements} selection={barLinger.value.selection} cell={cell} cols={cols} leaving={barLinger.leaving} />}
     </div>
   )

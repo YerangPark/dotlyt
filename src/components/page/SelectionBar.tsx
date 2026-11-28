@@ -150,3 +150,40 @@ export function ColorDot({
     </span>
   )
 }
+
+/** 고치는 글자 안에서 글자를 고르면 그 위에 뜨는 스타일 막대: 글자 스타일 창, 굵게, 색 (글자 전체에 적용) */
+export function EditStyleBar({ el, cell }: { el: Extract<El, { type: 'text' | 'box' }>; cell: number }) {
+  const st = useStore.getState()
+  const barRef = useRef<HTMLDivElement>(null)
+  const [shift, setShift] = useState(0)
+  // 노트 영역 밖으로 나가면 잘리므로 안쪽으로 밀어 넣는다 (고른 것 막대와 같은 방식)
+  useLayoutEffect(() => {
+    const b = barRef.current
+    if (!b) return
+    const r = b.getBoundingClientRect()
+    const d = b.closest('.desk')?.getBoundingClientRect()
+    const minX = Math.max(8, (d?.left ?? 0) + 4)
+    const maxX = Math.min(window.innerWidth - 8, (d?.right ?? window.innerWidth) - 4)
+    const w = b.offsetWidth
+    const base = r.left + r.width / 2 - w / 2 - shift
+    const fix = base < minX ? minX - base : base + w > maxX ? maxX - (base + w) : 0
+    if (Math.abs(fix - shift) > 0.5) setShift(fix)
+  })
+  const below = el.y < 2.5
+  const box = elBox(el)
+  return (
+    <div
+      ref={barRef}
+      className={'sel-bar edit-style-bar' + (below ? ' below' : '')}
+      style={{ left: ((box.x1 + box.x2) / 2) * cell + shift, top: below ? (el.y + (el.type === 'box' ? el.h : 1)) * cell + 8 : el.y * cell - 8 }}
+      // 눌러도 입력칸의 커서·고른 글자를 그대로 둔다
+      onPointerDown={(e) => e.preventDefault()}
+    >
+      <TextStyleButton className="sel-style" label="글자" />
+      <button className={'edit-bold' + (el.bold ? ' on' : '')} onClick={() => st.toggleBold()} title="굵게 (⌘B)" aria-pressed={!!el.bold}>
+        <b>B</b>
+      </button>
+      <ColorDot items={[el]} colors={INK_COLORS} fallback={INK_COLORS[0].color} label="글자 색" below={below} onPick={(c) => st.recolorIds([el.id], c)} />
+    </div>
+  )
+}
