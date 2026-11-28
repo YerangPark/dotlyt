@@ -16,6 +16,9 @@ export type FontKey =
   | 'intelmono'
   | 'griungowoon'
   | 'myoeun'
+  | 'banguri'
+  | 'ochungi'
+  | 'efdiary'
   | 'kyobo2025'
   | 'kkakdugi'
   | 'yeongrong'
@@ -49,6 +52,9 @@ export const FONTS: FontInfo[] = [
   { key: 'jinju', label: '진주의일기장', group: '손글씨', family: `"Ownglyph Jinju Diary", ${KO_FALLBACK}`, scale: 1.36, load: 'Ownglyph Jinju Diary', lazy: true },
   { key: 'yeongrong', label: '온글잎 영롱', group: '손글씨', family: `"Ownglyph Yeongrong", ${KO_FALLBACK}`, scale: 1.2, load: 'Ownglyph Yeongrong', lazy: true },
   { key: 'myoeun', label: '묘은또박', group: '손글씨', family: `"Griun Myoeunddobak", ${KO_FALLBACK}`, scale: 1.06, load: 'Griun Myoeunddobak', lazy: true },
+  { key: 'banguri', label: '그리운 반구리', group: '손글씨', family: `"GriunXHangeul Banguri", ${KO_FALLBACK}`, scale: 1.0, load: 'GriunXHangeul Banguri', lazy: true },
+  { key: 'ochungi', label: '그리운 오청이김', group: '손글씨', family: `"GriunXHangeul OCHUNGI.KIM", ${KO_FALLBACK}`, scale: 1.15, load: 'GriunXHangeul OCHUNGI.KIM', lazy: true },
+  { key: 'efdiary', label: '다이어리체', group: '손글씨', family: `"EF Diary", ${KO_FALLBACK}`, scale: 0.8, load: 'EF Diary', lazy: true },
   { key: 'griungowoon', label: '그리운 고운', group: '손글씨', family: `"GriunXHangeul Gowoon", ${KO_FALLBACK}`, scale: 1, load: 'GriunXHangeul Gowoon', lazy: true },
   { key: 'poorstory', label: '푸어스토리', group: '손글씨', family: `"Poor Story", ${KO_FALLBACK}`, scale: 1.06, load: 'Poor Story' },
   {

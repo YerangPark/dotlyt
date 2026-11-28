@@ -54,6 +54,24 @@
   font-display: swap;
 }
 @font-face {
+  font-family: 'GriunXHangeul Banguri';
+  src: url('/fonts/griun/GriunXHangeul_Banguri-Rg.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GriunXHangeul OCHUNGI.KIM';
+  src: url('/fonts/griun/GriunXHangeul_OCHUNGI.KIM-Rg.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'EF Diary';
+  src: url('/fonts/earlyfont/EF_Diary.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
   font-family: 'Griun Myoeunddobak';
   src: url('/fonts/Griun_Myoeunddobak-Rg.woff2') format('woff2');
   font-weight: 400;
