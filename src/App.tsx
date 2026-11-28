@@ -6,7 +6,7 @@ import NotebookForm from './components/NotebookForm'
 import { PagesOverview } from './components/PagesOverview'
 import PageView from './components/PageView'
 import Toolbar from './components/Toolbar'
-import { currentPage, spreadStart, useStore } from './store'
+import { clipFromHtml, currentPage, spreadStart, useStore } from './store'
 import { HIGHLIGHT_COLORS, INK_COLORS, isLight } from './types'
 import { matchShortcut } from './shortcuts'
 import { ShortcutHelp } from './components/ShortcutHelp'
@@ -117,6 +117,7 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const addPage = useStore((s) => s.addPage)
   const updateNotebook = useStore((s) => s.updateNotebook)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const pasteHandled = useRef(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const sync = useSync()
   const [indexEditFor, setIndexEditFor] = useState<string | null>(null)
@@ -180,7 +181,13 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           if (!typing && st.cutSelection()) e.preventDefault()
           return
         case 'paste':
-          if (!typing && st.paste()) e.preventDefault()
+          // 붙여넣기 이벤트에서 시스템 클립보드(다른 브라우저·탭에서 복사한 것)를 먼저 본다. 이벤트가 안 오면 앱 클립보드로
+          if (!typing) {
+            pasteHandled.current = false
+            window.setTimeout(() => {
+              if (!pasteHandled.current) useStore.getState().paste()
+            }, 0)
+          }
           return
         case 'duplicate':
           if (!typing && st.selection.length) {
@@ -259,8 +266,24 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           return setHelpOpen((v) => !v)
       }
     }
+    // 붙여넣기: 시스템 클립보드에 Dotlyt 항목이 있으면(다른 탭·브라우저에서 복사) 그걸, 아니면 앱 클립보드를
+    const onPaste = (e: ClipboardEvent) => {
+      if (document.querySelector('.modal, .overview')) return
+      const t = e.target instanceof Element ? e.target : null
+      const inField = !!t?.closest('input, textarea, select')
+      const typing = inField && !(t instanceof HTMLInputElement && t.classList.contains('ink-input') && !t.value)
+      if (typing) return
+      pasteHandled.current = true
+      const clip = clipFromHtml(e.clipboardData?.getData('text/html'))
+      if (clip) useStore.setState({ clipboard: clip })
+      if (useStore.getState().paste()) e.preventDefault()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.addEventListener('paste', onPaste)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('paste', onPaste)
+    }
   }, [])
 
   // PC 넓은 화면은 양쪽 펼침면

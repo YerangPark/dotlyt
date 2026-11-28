@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useStore } from '../../store'
+import { clipFromHtml, useStore } from '../../store'
 import { MOD } from '../../shortcuts'
 
 export interface CtxMenu {
@@ -56,12 +56,23 @@ export function ContextMenu({ menu, onClose, leaving }: { menu: CtxMenu; onClose
     fn()
     onClose()
   }
-  const paste = run(() => {
+  const paste = () => {
     const s = useStore.getState()
     // 빈 칸에서 눌렀으면 그 칸에 붙인다 (붙여넣기는 커서가 있는 빈 칸을 쓴다)
     if (!menu.onItem) s.openAt(menu.cx, menu.cy)
-    s.paste()
-  })
+    onClose()
+    // 다른 브라우저·탭에서 복사한 것이 시스템 클립보드에 있으면 그걸 (읽기 허락을 묻는 브라우저도 있다)
+    const read = navigator.clipboard?.read?.()
+    if (!read) return void useStore.getState().paste()
+    read
+      .then(async (items) => {
+        const item = items.find((i) => i.types.includes('text/html'))
+        const clip = item ? clipFromHtml(await (await item.getType('text/html')).text()) : null
+        if (clip) useStore.setState({ clipboard: clip })
+      })
+      .catch(() => {})
+      .finally(() => useStore.getState().paste())
+  }
 
   return (
     <div

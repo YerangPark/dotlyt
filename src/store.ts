@@ -26,6 +26,54 @@ import { DEFAULT_FONT, fontOf, type FontKey } from './fonts'
 const STORAGE_KEY = 'dotlyt:v1'
 const UI_KEY = 'dotlyt:ui'
 const TEMPLATES_KEY = 'dotlyt:templates'
+const CLIP_KEY = 'dotlyt:clipboard'
+
+/**
+ * 시스템 클립보드에도: 다른 앱에는 글자로, Dotlyt(다른 브라우저·프로필 포함)에는 html 안에 숨긴 항목 데이터로 붙는다
+ */
+function writeSystemClip(clip: NonNullable<State['clipboard']>, text: string) {
+  const cb = navigator.clipboard
+  if (!cb) return
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const html = `<meta charset="utf-8"><span data-dotlyt="${encodeURIComponent(JSON.stringify(clip))}">${esc(text) || '&nbsp;'}</span>`
+  try {
+    if (typeof ClipboardItem !== 'undefined' && cb.write) {
+      cb.write([
+        new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        }),
+      ]).catch(() => {
+        if (text) cb.writeText(text).catch(() => {})
+      })
+      return
+    }
+  } catch {
+    /* 아래로 */
+  }
+  if (text) cb.writeText(text).catch(() => {})
+}
+
+/** 시스템 클립보드 html에서 Dotlyt 항목을 꺼낸다 (없으면 null) */
+export function clipFromHtml(html: string | null | undefined): State['clipboard'] {
+  const m = html?.match(/data-dotlyt="([^"]+)"/)
+  if (!m) return null
+  try {
+    const c = JSON.parse(decodeURIComponent(m[1]))
+    return c && Array.isArray(c.els) && c.origin ? c : null
+  } catch {
+    return null
+  }
+}
+
+/** 다른 탭에서 복사한 것 (마지막으로 복사한 탭의 것이 남아 있다) */
+function sharedClip(): State['clipboard'] {
+  try {
+    return JSON.parse(localStorage.getItem(CLIP_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
 
 function loadTemplates(): Template[] {
   try {
@@ -440,7 +488,7 @@ export const useStore = create<State>()((set, get) => ({
   fontsVersion: 0,
   textBold: false,
   iconSize: 1,
-  clipboard: null,
+  clipboard: sharedClip(),
   crossPreview: null,
   setCrossPreview: (crossPreview) => set({ crossPreview }),
   erasing: null,
@@ -1002,14 +1050,21 @@ export const useStore = create<State>()((set, get) => ({
     }
     const boxes = els.map((e) => elBox(e))
     const origin = { x: Math.floor(Math.min(...boxes.map((b) => b.x1))), y: Math.floor(Math.min(...boxes.map((b) => b.y1))) }
-    set({ clipboard: { els: els.map((e) => translate(e, -origin.x, -origin.y)), pageId: firstPage, origin } })
+    const clipboard = { els: els.map((e) => translate(e, -origin.x, -origin.y)), pageId: firstPage, origin }
+    set({ clipboard })
+    // 같은 브라우저의 다른 탭에서도 붙여넣을 수 있게 브라우저 저장소에도 (탭마다 메모리가 따로라서)
+    try {
+      localStorage.setItem(CLIP_KEY, JSON.stringify(clipboard))
+    } catch {
+      /* 저장 못 해도 이 탭에서는 붙여넣기 된다 */
+    }
     // 다른 앱에 붙여넣을 수 있게 글자는 시스템 클립보드에도
     const text = els
       .filter((e) => e.type === 'text' || e.type === 'box')
       .sort((a, b) => (a as { y: number }).y - (b as { y: number }).y || (a as { x: number }).x - (b as { x: number }).x)
       .map((e) => (e as { text: string }).text)
       .join('\n')
-    if (text) navigator.clipboard?.writeText(text).catch(() => {})
+    writeSystemClip(clipboard, text)
     return true
   },
   cutSelection: () => {
@@ -1019,7 +1074,7 @@ export const useStore = create<State>()((set, get) => ({
   },
   paste: () => {
     const s = get()
-    const clip = s.clipboard
+    const clip = s.clipboard ?? sharedClip()
     const page = currentPage(s)
     if (!clip || !page) return false
     const c = s.cursor
@@ -1108,3 +1163,10 @@ export const useStore = create<State>()((set, get) => ({
     set({ pages, history, currentPageId: target, cursor: null, selection: [], popup: null })
   },
 }))
+
+// 다른 탭에서 복사하면 이 탭의 클립보드도 그것으로 (마지막에 복사한 것을 붙인다)
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === CLIP_KEY) useStore.setState({ clipboard: sharedClip() })
+  })
+}
