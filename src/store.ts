@@ -250,6 +250,8 @@ export type Popup =
   | { kind: 'state'; id: string }
   /** 아이콘 고르기. replaceId가 있으면 그 아이콘을 바꾼다 */
   | { kind: 'icon'; x: number; y: number; replaceId?: string }
+  /** 달력 넣기: 이 칸을 왼쪽 위로 해서 한 달 달력을 그린다 */
+  | { kind: 'calendar'; x: number; y: number }
   | null
 
 /** 줄 맨 앞 빠른 입력 */
@@ -321,6 +323,8 @@ interface State extends Persisted {
   setIconSize: (size: 1 | 2 | 3) => void
   /** 아이콘 고르기 창에서 고른 아이콘을 칸에 넣거나, 있던 아이콘을 바꾼다 */
   addIcon: (icon: string) => void
+  /** 한 달 달력: 첫 줄 M T W T F S S, 아래로 날짜. dayW: 하루 칸 폭(1~2칸). month는 0부터 */
+  addCalendar: (year: number, month: number, dayW: number) => void
   setBulletState: (id: string, state: BulletState) => void
   toggleCancel: (id: string) => void
   deleteElement: (id: string) => void
@@ -772,6 +776,36 @@ export const useStore = create<State>()((set, get) => ({
     }
     const el = clampInto({ id: uid(), type: 'icon', x: p.x, y: p.y, icon, size: s.iconSize, color: s.lineStyle.color }, page)
     set({ ...leaveCursor(s), ...withElements({ ...s, ...leaveCursor(s) } as State, [...page.elements, el]), popup: null, selection: [] })
+  },
+  addCalendar: (year, month, dayW) => {
+    const s = get()
+    const p = s.popup
+    const page = currentPage(s)
+    if (p?.kind !== 'calendar' || !page) return
+    const color = s.lineStyle.color
+    const cellBox = (col: number, row: number, text: string): El => ({
+      id: uid(),
+      type: 'box',
+      x: p.x + col * dayW,
+      y: p.y + row,
+      w: dayW,
+      h: 1,
+      text,
+      size: 's',
+      align: 'center',
+      ...(color !== INK_COLORS[0].color ? { color } : {}),
+    })
+    const els: El[] = [...'MTWTFSS'].map((d, i) => ({ ...cellBox(i, 0, d), bold: true }) as El)
+    // 월요일부터: 1일이 무슨 요일 칸에 오는지
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7
+    const days = new Date(year, month + 1, 0).getDate()
+    for (let d = 1; d <= days; d++) {
+      const i = offset + d - 1
+      els.push(cellBox(i % 7, 1 + Math.floor(i / 7), String(d)))
+    }
+    const placed = clampGroup(els, page)
+    const base = { ...s, ...leaveCursor(s) } as State
+    set({ ...leaveCursor(s), ...withElements(base, [...(currentPage(base)?.elements ?? page.elements), ...placed]), popup: null, selection: placed.map((e) => e.id) })
   },
   addBullet: (state) => {
     const s = get()

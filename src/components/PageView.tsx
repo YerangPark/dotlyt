@@ -11,6 +11,7 @@ import { GuideMarks, MarqueeRect } from './page/overlays'
 import { SymbolPopup } from './page/SymbolPopup'
 import { SelectionBar } from './page/SelectionBar'
 import { IconPicker } from './page/IconPicker'
+import { CalendarPicker } from './page/CalendarPicker'
 import { ContextMenu, type CtxMenu } from './page/ContextMenu'
 
 type Drag =
@@ -874,8 +875,9 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
           />
         )}
       </div>
-      {popup && popup.kind !== 'icon' && <SymbolPopup popup={popup} elements={elements} cell={cell} />}
+      {popup && popup.kind !== 'icon' && popup.kind !== 'calendar' && <SymbolPopup popup={popup} elements={elements} cell={cell} />}
       {ctxLinger.value && <ContextMenu menu={ctxLinger.value} onClose={closeCtx} leaving={ctxLinger.leaving} />}
+      {popup?.kind === 'calendar' && <CalendarPicker x={popup.x} y={popup.y} cols={cols} rows={rows} cell={cell} />}
       {popup?.kind === 'icon' && <IconPicker x={popup.x} y={popup.y} cols={cols} rows={rows} cell={cell} replacing={!!popup.replaceId} />}
       {barLinger.value && <SelectionBar elements={barLinger.value.elements} selection={barLinger.value.selection} cell={cell} cols={cols} leaving={barLinger.leaving} />}
     </div>

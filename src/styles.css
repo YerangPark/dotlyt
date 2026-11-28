@@ -4225,3 +4225,53 @@ h3 {
 .page-svg [data-handle] * {
   pointer-events: auto;
 }
+
+/* ---------- 달력 넣기 ---------- */
+.cal-picker {
+  width: 260px;
+}
+.cal-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.cal-nav {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 18px;
+  cursor: pointer;
+}
+.cal-nav:hover {
+  background: var(--hover);
+}
+.cal-preview {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.cal-preview b {
+  color: var(--ink);
+  font-weight: 600;
+  padding-bottom: 2px;
+}
+.cal-preview span {
+  padding: 2px 0;
+}
+.cal-note {
+  margin: 8px 0 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.cal-add {
+  width: 100%;
+}

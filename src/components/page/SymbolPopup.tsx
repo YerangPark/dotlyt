@@ -35,7 +35,7 @@ function matches(e: KeyboardEvent, codes: string[]) {
 }
 
 /** 기호 바로 위에 뜨는 팝업. 바깥을 누르거나 Esc로 닫힌다. PC는 키 하나로 고른다. */
-export type SymPopup = Exclude<NonNullable<ReturnType<typeof useStore.getState>['popup']>, { kind: 'icon' }>
+export type SymPopup = Exclude<NonNullable<ReturnType<typeof useStore.getState>['popup']>, { kind: 'icon' } | { kind: 'calendar' }>
 
 export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elements: El[]; cell: number }) {
   const bullet = popup.kind === 'state' ? (elements.find((e) => e.id === popup.id) as BulletEl | undefined) : undefined
@@ -148,6 +148,14 @@ export function SymbolPopup({ popup, elements, cell }: { popup: SymPopup; elemen
               <path d={iconOf('sun').d} />
             </svg>
             <span className="sym-label">아이콘</span>
+          </button>
+          <button role="menuitem" className="sym-opt" onClick={() => st.setPopup({ kind: 'calendar', x: popup.x, y: popup.y })}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="5" width="16" height="15" rx="2" />
+              <path d="M4 10h16M9 3v4M15 3v4" />
+              <path d="M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01" strokeWidth="2.2" />
+            </svg>
+            <span className="sym-label">달력</span>
           </button>
         </>
       )}
