@@ -4215,3 +4215,13 @@ h3 {
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* 도트지 안의 점·선·글자는 마우스를 받지 않는다: 지날 때마다 대상이 바뀌면 브라우저가 그림 커서를 다시 불러와서 깜박인다.
+   누른 곳 판정은 좌표로 직접 하므로 필요 없다 (네모칸 크기 손잡이만 예외) */
+.page-svg * {
+  pointer-events: none;
+}
+.page-svg [data-handle],
+.page-svg [data-handle] * {
+  pointer-events: auto;
+}
