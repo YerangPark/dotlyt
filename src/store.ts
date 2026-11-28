@@ -350,7 +350,8 @@ interface State extends Persisted {
   /** 고른 것을 옮긴 결과 적용 (펼침면 반대쪽 페이지로 넘어가는 것 포함) */
   applyPlacements: (placements: Placement[]) => void
   /** 복사해 둔 항목. 좌표는 묶음 왼쪽 위(0,0) 기준, origin은 복사한 자리 */
-  clipboard: { els: El[]; pageId: string; origin: Pt } | null
+  /** split: 펼침면 양쪽에서 복사했으면 오른쪽 페이지 것이 시작하는 x (묶음 기준). 붙일 때 다시 양쪽으로 나눈다 */
+  clipboard: { els: El[]; pageId: string; origin: Pt; split?: number } | null
   copySelection: () => boolean
   cutSelection: () => boolean
   /** 커서가 있는 빈 칸이 있으면 거기에, 없으면 복사한 자리에서 한 칸씩 비켜서 붙인다 */
@@ -362,6 +363,13 @@ interface State extends Persisted {
 
 export const currentPage = (s: Pick<State, 'pages' | 'currentPageId'>) =>
   s.pages.find((p) => p.id === s.currentPageId) ?? null
+
+/** 두 페이지가 같은 펼침면인지 */
+const sameSpread = (pages: Page[], a: string, b: string) => {
+  const i = pages.findIndex((p) => p.id === a)
+  const j = pages.findIndex((p) => p.id === b)
+  return i >= 0 && j >= 0 && spreadStart(i) === spreadStart(j)
+}
 
 /** 펼침면의 왼쪽 페이지 번호 */
 export const spreadStart = (index: number) => index - (index % 2)
@@ -1041,16 +1049,23 @@ export const useStore = create<State>()((set, get) => ({
     const els: El[] = []
     let offset = 0
     let firstPage = ''
+    let split: number | undefined
     for (const p of s.pages) {
       const mine = p.elements.filter((e) => s.selection.includes(e.id))
       if (!mine.length) continue
       if (!firstPage) firstPage = p.id
+      else if (split === undefined) split = offset
       els.push(...mine.map((e) => translate(e, offset, 0)))
       offset += p.cols + 1
     }
     const boxes = els.map((e) => elBox(e))
     const origin = { x: Math.floor(Math.min(...boxes.map((b) => b.x1))), y: Math.floor(Math.min(...boxes.map((b) => b.y1))) }
-    const clipboard = { els: els.map((e) => translate(e, -origin.x, -origin.y)), pageId: firstPage, origin }
+    const clipboard = {
+      els: els.map((e) => translate(e, -origin.x, -origin.y)),
+      pageId: firstPage,
+      origin,
+      ...(split !== undefined ? { split: split - origin.x } : {}),
+    }
     set({ clipboard })
     // 같은 브라우저의 다른 탭에서도 붙여넣을 수 있게 브라우저 저장소에도 (탭마다 메모리가 따로라서)
     try {
@@ -1082,9 +1097,29 @@ export const useStore = create<State>()((set, get) => ({
     const at =
       c && !c.editId
         ? { x: c.x, y: c.y }
-        : clip.pageId === page.id
+        : clip.pageId === page.id || (clip.split !== undefined && sameSpread(s.pages, clip.pageId, page.id))
           ? { x: clip.origin.x + 1, y: clip.origin.y + 1 }
           : { x: clip.origin.x, y: clip.origin.y }
+    // 펼침면 양쪽에서 복사한 것: 왼쪽 몫은 펼침면 왼쪽 페이지에, 오른쪽 몫은 오른쪽 페이지에 같은 자리로
+    const idx = s.pages.findIndex((p) => p.id === page.id)
+    const L = s.pages[spreadStart(idx)]
+    const R = s.pages[spreadStart(idx) + 1]
+    if (clip.split !== undefined && L && R) {
+      const split = clip.split
+      const d = { x: at.x - clip.origin.x, y: at.y - clip.origin.y }
+      const isRight = (e: El) => elBox(e).x1 >= split
+      const fresh = (e: El, dx: number) => ({ ...translate(e, clip.origin.x + dx, clip.origin.y + d.y), id: uid() }) as El
+      const left = clampGroup(clip.els.filter((e) => !isRight(e)).map((e) => fresh(e, d.x)), L)
+      const right = clampGroup(clip.els.filter(isRight).map((e) => fresh(e, d.x - clip.origin.x - split)), R)
+      const base = { ...s, ...leaveCursor(s) } as State
+      set({
+        ...leaveCursor(s),
+        ...withPages(base, (cur, pid) => (pid === L.id && left.length ? [...cur, ...left] : pid === R.id && right.length ? [...cur, ...right] : null)),
+        selection: [...left, ...right].map((e) => e.id),
+        clipboard: { ...clip, pageId: page.id, origin: at },
+      })
+      return true
+    }
     const els = clampGroup(
       clip.els.map((e) => ({ ...translate(e, at.x, at.y), id: uid() }) as El),
       page,
