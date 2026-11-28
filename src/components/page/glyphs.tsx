@@ -1,4 +1,4 @@
-import { BOX_PAD, FONT_SIZE, boxFontSize, boxLineYs, boxLines, itemTextOf, measureText, textInk } from '../../geometry'
+import { boxPad, FONT_SIZE, boxFontSize, boxLineYs, boxLines, itemTextOf, measureText, textInk } from '../../geometry'
 import { fontOf } from '../../fonts'
 import { iconOf } from '../../icons'
 import { strokePaths } from '../../ink'
@@ -141,10 +141,10 @@ export function BoxText({ el, hidden }: { el: BoxEl; hidden?: boolean }) {
   const fs = boxFontSize(el) * f.scale
   const lines = boxLines(el.text)
   const ys = boxLineYs(el.valign, fs, el.h, lines.length)
-  const x = el.align === 'center' ? el.x + el.w / 2 : el.align === 'right' ? el.x + el.w - BOX_PAD : el.x + BOX_PAD
+  const x = el.align === 'center' ? el.x + el.w / 2 : el.align === 'right' ? el.x + el.w - boxPad(el.w) : el.x + boxPad(el.w)
   // 양쪽 정렬: 줄마다 낱말 사이(띄어쓰기)를 벌려 네모칸 안쪽 폭에 맞춘다. 띄어쓰기 없는 줄은 왼쪽 (쓰는 중 입력칸과 같게)
   const justify = el.align === 'justify'
-  const inner = el.w - BOX_PAD * 2
+  const inner = el.w - boxPad(el.w) * 2
   const wordGap = (line: string) => {
     const spaces = (line.trim().match(/ /g) ?? []).length
     if (!justify || !spaces) return undefined

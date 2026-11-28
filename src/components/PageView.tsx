@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { BOX_LINE_GAP, BOX_PAD, DOT_GRAB, boxLineYs, boxLines, DRAG_THRESHOLD, FONT_SIZE, TEXT_PAD, axisEnd, boxFontSize, boxTouches, distToDot, elBox, hitTest, fontSizeOf, textWidth, textAnchor, textMidY, textInk, nearestDot, textCells } from '../geometry'
+import { BOX_LINE_GAP, boxPad, DOT_GRAB, boxLineYs, boxLines, DRAG_THRESHOLD, FONT_SIZE, TEXT_PAD, axisEnd, boxFontSize, boxTouches, distToDot, elBox, hitTest, fontSizeOf, textWidth, textAnchor, textMidY, textInk, nearestDot, textCells } from '../geometry'
 import { fontOf } from '../fonts'
 import { placeSelection } from '../move'
 import { uid, useStore } from '../store'
@@ -644,8 +644,8 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
       fontFamily: inputFont.family,
       ...boldCss(inputBold, cell, (fs * inputFont.scale) / FONT_SIZE, editing.color),
       ...(editing.color ? { color: editing.color } : {}),
-      paddingLeft: BOX_PAD * cell,
-      paddingRight: BOX_PAD * cell,
+      paddingLeft: boxPad(editing.w) * cell,
+      paddingRight: boxPad(editing.w) * cell,
       textAlign: editing.align ?? 'left',
       // 양쪽 정렬: 직접 줄을 바꾼 줄도 그려지는 글자처럼 양쪽으로 벌린다
       ...(editing.align === 'justify' ? { textAlignLast: 'justify' as const } : {}),

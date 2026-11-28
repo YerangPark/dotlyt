@@ -12,6 +12,8 @@ export const DRAG_THRESHOLD = 0.6
 export const DOT_GRAB = 0.34
 /** 네모칸 안쪽 여백 (칸 단위) */
 export const BOX_PAD = 0.25
+/** 네모칸 좌우 여백: 넓은 칸은 0.25칸, 좁은 칸은 얇게 (1칸 네모에 두 자리 숫자도 거의 같은 크기로 들어가게) */
+export const boxPad = (w: number) => Math.min(BOX_PAD, w * 0.05)
 
 /** 줄 글자 크기 (칸 높이 대비) */
 export const FONT_SIZES: Record<TextSize, number> = { xs: 0.38, s: 0.5, m: 0.62 }
@@ -33,7 +35,7 @@ export function boxFontSize(b: Pick<BoxEl, 'w' | 'h' | 'text' | 'bold' | 'size' 
     ? pitch * 0.85 * BOX_SCALE[b.size ?? 'm']
     : (b.h * 0.85 * BOX_SCALE[b.size ?? 'm']) / (1 + (lines.length - 1) * BOX_LINE_GAP)
   const perUnit = Math.max(...lines.map((l) => measureText(l || '가', b.bold, b.font))) / FONT_SIZE
-  const byW = (b.w - BOX_PAD * 2) / Math.max(perUnit, 0.01)
+  const byW = (b.w - boxPad(b.w) * 2) / Math.max(perUnit, 0.01)
   return Math.max(0.3, Math.min(byH, byW))
 }
 
