@@ -63,6 +63,17 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
   const svgRef = useRef<SVGSVGElement>(null)
   // 줄 글자는 input, 네모칸은 줄바꿈(Shift+Enter)이 되는 textarea
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
+  // 한 줄 입력칸이 내용을 옆으로 밀어 보여주지 않게 (글자가 그려진 자리에서 움직이지 않도록)
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el || el.tagName !== 'INPUT') return
+    if (el.scrollLeft) el.scrollLeft = 0
+    const pin = () => {
+      if (el.scrollLeft) el.scrollLeft = 0
+    }
+    el.addEventListener('scroll', pin)
+    return () => el.removeEventListener('scroll', pin)
+  })
   const uidPrefix = useId().replace(/:/g, '')
   const dotsId = 'dots' + uidPrefix
   const pencilId = 'pencil' + uidPrefix
@@ -618,9 +629,12 @@ export default function PageView({ page, cell, active, side, guides, selBar }: P
     const align = align0 === 'justify' ? 'left' : align0
     const n = textInk({ x: cursor.x, text: inputValue, bold: inputBold, size: inputSize, align, font: inputFont.key }).n
     // 왼쪽 정렬: 오른쪽으로 늘어나는 입력칸 / 가운데·오른쪽: 글자가 차지한 칸에 딱 맞춘 입력칸
+    // 페이지 끝에 닿은 글자: 입력칸을 페이지 끝에서 자르면 글자가 칸보다 넓어져서 브라우저가 내용을 왼쪽으로 밀어(스크롤) 보여준다.
+    // 그래서 입력칸은 적어도 글자 폭만큼은 넓게 (끝을 조금 넘어도 된다)
+    const inkW = TEXT_PAD + textWidth(inputValue, inputBold, inputSize, inputFont.key) + 0.2
     const w =
       align === 'left'
-        ? Math.min(Math.max(TEXT_PAD + textWidth(inputValue, inputBold, inputSize, inputFont.key) + 1, 1.5), cols - cursor.x)
+        ? Math.max(Math.min(Math.max(inkW + 0.8, 1.5), cols - cursor.x), inkW)
         : Math.min(n, cols - cursor.x)
     inputStyle = {
       textAlign: align,
