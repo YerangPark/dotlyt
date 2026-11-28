@@ -117,7 +117,10 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
   const addPage = useStore((s) => s.addPage)
   const updateNotebook = useStore((s) => s.updateNotebook)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // 붙여넣기 키를 누른 뒤 아직 안 붙였으면 false. 메뉴로 붙일 때를 위해 평소엔 false
   const pasteHandled = useRef(false)
+  const pasteTimer = useRef(0)
+  const fallbackAt = useRef(0)
   const [accountOpen, setAccountOpen] = useState(false)
   const sync = useSync()
   const [indexEditFor, setIndexEditFor] = useState<string | null>(null)
@@ -182,11 +185,17 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
           return
         case 'paste':
           // 붙여넣기 이벤트에서 시스템 클립보드(다른 브라우저·탭에서 복사한 것)를 먼저 본다. 이벤트가 안 오면 앱 클립보드로
-          if (!typing) {
+          // 붙여넣기 이벤트가 클립보드를 읽느라 늦게 올 수 있어서 잠깐 기다렸다가, 끝내 안 오면(맥의 Ctrl+V 등) 앱 클립보드로.
+          // 둘 중 하나만 붙인다 (예전엔 이벤트가 늦으면 두 번 붙었다)
+          if (!typing && !e.repeat) {
             pasteHandled.current = false
-            window.setTimeout(() => {
-              if (!pasteHandled.current) useStore.getState().paste()
-            }, 0)
+            window.clearTimeout(pasteTimer.current)
+            pasteTimer.current = window.setTimeout(() => {
+              if (pasteHandled.current) return
+              pasteHandled.current = true
+              fallbackAt.current = performance.now()
+              useStore.getState().paste()
+            }, 250)
           }
           return
         case 'duplicate':
@@ -273,7 +282,13 @@ function Workspace({ onHome, fromCover }: { onHome: () => void; fromCover: boole
       const inField = !!t?.closest('input, textarea, select')
       const typing = inField && !(t instanceof HTMLInputElement && t.classList.contains('ink-input') && !t.value)
       if (typing) return
+      // 기다리다 이미 붙였으면 이번 이벤트는 넘긴다 (브라우저 기본 붙여넣기만 막는다)
+      if (performance.now() - fallbackAt.current < 1500) {
+        fallbackAt.current = 0
+        return e.preventDefault()
+      }
       pasteHandled.current = true
+      window.clearTimeout(pasteTimer.current)
       const clip = clipFromHtml(e.clipboardData?.getData('text/html'))
       if (clip) useStore.setState({ clipboard: clip })
       if (useStore.getState().paste()) e.preventDefault()
